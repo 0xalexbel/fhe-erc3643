@@ -1,0 +1,24 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "fhevm test mint",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "type": "node",
+      "cwd": "${workspaceFolder}",
+      "runtimeArgs": ["hardhat", "--network", "fhevm", "test", "--grep", "min"]
+    },
+    {
+      "name": "hh test mint",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "type": "node",
+      "cwd": "${workspaceFolder}",
+      "runtimeArgs": ["hardhat", "--network", "hardhat", "test", "--grep", "min"]
+    }
+  ]
+}

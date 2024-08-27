@@ -1,0 +1,12 @@
+# directories
+artifacts
+cache
+node_modules
+types
+
+# files
+.DS_Store
+package-lock.json
+pnpm-lock.yaml
+README.md
+LICENSE

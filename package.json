@@ -1,0 +1,70 @@
+{
+  "name": "@0xalexbel/fhe-3643",
+  "description": "Confidential ERC3643 using fhevm",
+  "version": "1.0.0",
+  "author": {
+    "name": "Alexandre BELHOSTE",
+    "url": "https://github.com/0xalexbel"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.7",
+    "@openzeppelin/contracts": "^5.0.2",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "@types/chai": "^4.3.18",
+    "@types/mocha": "^10.0.7",
+    "chai": "^4.3.7",
+    "fhevm": "0.5.8",
+    "hardhat": "^2.22.9",
+    "hardhat-fhevm": "^0.1.1",
+    "hardhat-ignore-warnings": "^0.2.11",
+    "hardhat-gas-reporter": "^2.2.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4",
+    "rimraf": "^6.0.1",
+    "eslint": "^8.57.0",
+    "@eslint/js": "^8.57.0",
+    "@types/eslint__js": "^8.42.3",
+    "typescript-eslint": "8.3.0",
+    "prettier": "^3.3.3",
+    "prettier-plugin-solidity": "^1.4.1",
+    "solhint": "^5.0.3",
+    "solhint-plugin-openzeppelin": "file:solhint-plugin-openzeppelin"
+  },
+  "files": [
+    "/contracts/**/*.sol"
+  ],
+  "keywords": [
+    "blockchain",
+    "ethers",
+    "ethereum",
+    "hardhat",
+    "fhevm",
+    "smart-contracts",
+    "solidity",
+    "template",
+    "typescript",
+    "typechain"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "npm run lint:ts && npm run lint:sol",
+    "lint:ts": "eslint .",
+    "lint:sol": "solhint --max-warnings 25 \"**/*.sol\"",
+    "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
+    "prettier": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
+    "clean": "hardhat clean && rimraf ./types",
+    "clean:all": "hardhat fhevm clean && npm run clean && rimraf ./cache",
+    "compile": "npm run typechain && hardhat compile",
+    "build": "npm run typechain && tsc --noEmit",
+    "typechain": "hardhat typechain",
+    "test": "hardhat test",
+    "test:fhevm": "hardhat --network fhevm test",
+    "start": "hardhat fhevm start",
+    "stop": "hardhat fhevm stop",
+    "gas-report": "env ENABLE_GAS_REPORT=true npm run test:fhevm",
+    "slither": "npm run clean && slither ."
+  }
+}
