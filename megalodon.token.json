@@ -1,0 +1,25 @@
+{
+  "salt": "TheMegToken",
+  "token": {
+    "name": "MEGALODON",
+    "symbol": "MEG",
+    "decimals": 0,
+    "identityRegistryStorage": "0x0000000000000000000000000000000000000000",
+    "identity": "0x0000000000000000000000000000000000000000",
+    "identityRegistryAgents": ["0x0000000000000000000000000000000000000000"],
+    "tokenAgents": ["0x0000000000000000000000000000000000000000"],
+    "complianceModules": [],
+    "complianceSettings": []
+  },
+  "claims": {
+    "topics": ["10101010000042n", "10101000100006n"],
+    "issuers": {
+      "foo-university": {
+        "topics": ["10101010000042n"]
+      },
+      "bar-government": {
+        "topics": ["10101010000042n"]
+      }
+    }
+  }
+}

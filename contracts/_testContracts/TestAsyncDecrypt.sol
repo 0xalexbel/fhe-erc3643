@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
-
 pragma solidity ^0.8.24;
 
 import {TFHE, ebool, euint4, euint8, euint16, euint32, euint64, eaddress, ebytes256, einput} from "fhevm/lib/TFHE.sol";

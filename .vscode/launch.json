@@ -5,12 +5,12 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "fhevm test mint",
+      "name": "fhevm identity setup",
       "request": "launch",
       "runtimeExecutable": "npx",
       "type": "node",
       "cwd": "${workspaceFolder}",
-      "runtimeArgs": ["hardhat", "--network", "fhevm", "test", "--grep", "min"]
+      "runtimeArgs": ["hardhat", "--network", "fhevm", "identity", "setup", "--wallet-index", "0"]
     },
     {
       "name": "hh test mint",

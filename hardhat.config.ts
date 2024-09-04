@@ -1,3 +1,4 @@
+import '@openzeppelin/hardhat-upgrades';
 import '@nomicfoundation/hardhat-chai-matchers';
 import '@nomicfoundation/hardhat-ethers';
 import '@typechain/hardhat';
@@ -18,12 +19,17 @@ import 'hardhat-ignore-warnings';
  */
 import 'hardhat-fhevm';
 import { HardhatUserConfig } from 'hardhat/config';
+//import './tasks';
 
 const config: HardhatUserConfig = {
   solidity: {
     version: '0.8.24',
     settings: {
       evmVersion: 'cancun',
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
     },
   },
   // required to silence all fhevm solidity warnings
@@ -38,6 +44,11 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     timeout: 500000,
+  },
+  gasReporter: {
+    showMethodSig: true,
+    includeBytecodeInJSON: true,
+    enabled: process.env.ENABLE_GAS_REPORT === 'true',
   },
 };
 
