@@ -75,6 +75,28 @@ export async function encrypt64Array(
   return input.encrypt();
 }
 
+export async function tokenTransferTxPromise(
+  token: Token,
+  signer: EthersT.Signer,
+  to: EthersT.AddressLike,
+  amount: number | bigint,
+) {
+  const signerEncAmount = await encrypt64(token, signer, amount);
+  return token
+    .connect(signer)
+    ['transfer(address,bytes32,bytes)'](to, signerEncAmount.handles[0], signerEncAmount.inputProof);
+}
+
+export async function tokenTransfer(
+  token: Token,
+  signer: EthersT.Signer,
+  to: EthersT.AddressLike,
+  amount: number | bigint,
+) {
+  const tx = await tokenTransferTxPromise(token, signer, to, amount);
+  return await tx.wait(1);
+}
+
 export async function tokenMintTxPromise(
   token: Token,
   signer: EthersT.Signer,
@@ -147,7 +169,8 @@ export async function tokenUnfreeze(
 
 export async function tokenBalanceOf(token: Token, user: EthersT.AddressLike) {
   const encBalance = await token.balanceOf(user);
-  return await hre.fhevm.decrypt64(encBalance);
+  const b = await hre.fhevm.decrypt64(encBalance);
+  return b;
 }
 
 export async function tokenTotalSupply(token: Token) {

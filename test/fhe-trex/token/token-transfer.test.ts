@@ -1,5 +1,7 @@
+import '../../../tasks/aa';
+import '../../../tasks/index';
 import { assert, expect } from 'chai';
-import { fhevm, ethers } from 'hardhat';
+import hre, { fhevm, ethers } from 'hardhat';
 import { ethers as EthersT } from 'ethers';
 import {
   deployFullSuiteFixture,
@@ -18,7 +20,16 @@ import {
   tokenBurn,
   tokenFreeze,
   tokenMint,
+  tokenTransfer,
+  tokenTransferTxPromise,
 } from '../../utils';
+import {
+  SCOPE_TOKEN,
+  SCOPE_TOKEN_BALANCE,
+  SCOPE_TOKEN_MINT,
+  SCOPE_TREX,
+  SCOPE_TREX_SETUP,
+} from '../../../tasks/task-names';
 
 async function tokenApprove(
   token: Token,
@@ -31,23 +42,6 @@ async function tokenApprove(
   const tx = await token
     .connect(signer)
     ['approve(address,bytes32,bytes)'](spender, signerEncAmount.handles[0], signerEncAmount.inputProof);
-  return await tx.wait(1);
-}
-
-async function tokenTransferTxPromise(
-  token: Token,
-  signer: EthersT.Signer,
-  to: EthersT.AddressLike,
-  amount: number | bigint,
-) {
-  const signerEncAmount = await encrypt64(token, signer, amount);
-  return token
-    .connect(signer)
-    ['transfer(address,bytes32,bytes)'](to, signerEncAmount.handles[0], signerEncAmount.inputProof);
-}
-
-async function tokenTransfer(token: Token, signer: EthersT.Signer, to: EthersT.AddressLike, amount: number | bigint) {
-  const tx = await tokenTransferTxPromise(token, signer, to, amount);
   return await tx.wait(1);
 }
 
@@ -100,6 +94,42 @@ async function tokenTransferFrom(
 }
 
 describe('Token - Transfers', () => {
+  // describe('Dummy', () => {
+  //   it('Dummy', async () => {
+  //     const { token } = (await hre.run({ scope: 'trex2', task: 'setup2' })) as { token: string };
+
+  //     // const beforeBalance = await hre.run({ scope: 'token', task: 'balance' }, { token, user: 'alice' });
+
+  //     // console.log('MINT');
+  //     // await hre.run({ scope: 'token', task: 'mint' }, { token, user: 'alice', agent: 'token-agent', amount: 10n });
+  //     // console.log('DONE');
+  //     const afterBalance = await hre.run({ scope: 'token', task: 'balance' }, { token, user: 'alice' });
+
+  //     //expect(afterBalance).to.eq(beforeBalance + 10n);
+  //   });
+  // });
+
+  describe('cli mint', () => {
+    it('should ', async () => {
+      // setup TREX token
+      const { token } = (await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP })) as { token: string };
+
+      // get user balance
+      const beforeBalance = await hre.run({ scope: SCOPE_TOKEN, task: SCOPE_TOKEN_BALANCE }, { token, user: 'alice' });
+
+      // mint
+      await hre.run(
+        { scope: SCOPE_TOKEN, task: SCOPE_TOKEN_MINT },
+        { token, user: 'alice', agent: 'token-agent', amount: 10n },
+      );
+
+      // get new user balance
+      const afterBalance = await hre.run({ scope: SCOPE_TOKEN, task: SCOPE_TOKEN_BALANCE }, { token, user: 'alice' });
+
+      expect(afterBalance).to.eq(beforeBalance + 10n);
+    });
+  });
+
   describe('.approve()', () => {
     it('should approve a contract to spend a certain amount of tokens', async () => {
       const {
@@ -256,6 +286,28 @@ describe('Token - Transfers', () => {
 
     describe('when the sender has not enough balance unfrozen', () => {
       it('nothing should happen', async () => {
+        const {
+          suite: { token },
+          accounts: { aliceWallet, bobWallet, tokenAgent },
+        } = await deployFullSuiteFixture();
+
+        const encAliceBalance = await token.balanceOf(aliceWallet.address);
+        const aliceBalance = await fhevm.decrypt64(encAliceBalance);
+
+        // 1. await token.connect(tokenAgent).freezePartialTokens(aliceWallet.address, balance - 100n);
+        await tokenFreeze(token, tokenAgent, aliceWallet, aliceBalance - 100n);
+
+        // 2. await expect(token.connect(aliceWallet).transfer(bobWallet.address, balance)).to.be.revertedWith(
+        //   'Insufficient Balance',
+        // );
+        await tokenTransfer(token, aliceWallet, bobWallet, aliceBalance);
+
+        const newAliceBalance = await tokenBalanceOf(token, aliceWallet);
+
+        expect(newAliceBalance).to.equal(aliceBalance);
+      });
+
+      it('CCCC nothing should happen', async () => {
         const {
           suite: { token },
           accounts: { aliceWallet, bobWallet, tokenAgent },

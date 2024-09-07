@@ -8,7 +8,7 @@ import {IIdentityRegistry} from "../registry/interfaces/IIdentityRegistry.sol";
 import {IModularCompliance} from "../compliance/modular/IModularCompliance.sol";
 import {TokenStorage} from "./TokenStorage.sol";
 import {AgentRoleUpgradeable} from "../roles/AgentRoleUpgradeable.sol";
-import "hardhat/console.sol";
+//import "hardhat/console.sol";
 
 contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
     /// modifiers
@@ -65,6 +65,7 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         _tokenDecimals = _decimals;
         _tokenOnchainID = _onchainID;
         _tokenPaused = true;
+        _totalSupply = TFHE.asEuint64(0);
         setIdentityRegistry(_identityRegistry);
         setCompliance(_compliance);
         emit UpdatedTokenInformation(_tokenName, _tokenSymbol, _tokenDecimals, _TOKEN_VERSION, _tokenOnchainID);
@@ -78,6 +79,7 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         einput encryptedAmount,
         bytes calldata inputProof
     ) external virtual override returns (bool) {
+        // TFHE.allowedTransient(TFHE.asEuint64(encryptedAmount, inputProof), msg.sender) == true
         return approve(_spender, TFHE.asEuint64(encryptedAmount, inputProof));
     }
 
@@ -85,7 +87,10 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      *  @dev See {IERC20-approve}.
      */
     function approve(address _spender, euint64 _eamount) public virtual override returns (bool) {
-        require(TFHE.isSenderAllowed(_eamount));
+        require(
+            TFHE.isSenderAllowed(_eamount),
+            "TFHE: caller does not have TFHE permissions to access amount argument"
+        );
         _approve(msg.sender, _spender, _eamount);
         return true;
     }
@@ -98,6 +103,7 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         einput encryptedAddedValue,
         bytes calldata inputProof
     ) external virtual returns (bool) {
+        // TFHE.allowedTransient(TFHE.asEuint64(encryptedAddedValue, inputProof), msg.sender) == true
         return increaseAllowance(_spender, TFHE.asEuint64(encryptedAddedValue, inputProof));
     }
 
@@ -105,9 +111,28 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      *  @dev See {ERC20-increaseAllowance}.
      */
     function increaseAllowance(address _spender, euint64 _eaddedValue) public virtual returns (bool) {
-        require(TFHE.isSenderAllowed(_eaddedValue));
-        euint64 eaddedValue = TFHE.add(_allowances[msg.sender][_spender], (_eaddedValue));
+        /*
+            _approve(msg.sender, _spender, _allowances[msg.sender][_spender] + (_addedValue));
+        */
+        require(euint64.unwrap(_eaddedValue) != 0, "TFHE: addedValue argument cannot be uninitialized");
+        require(
+            TFHE.isSenderAllowed(_eaddedValue),
+            "TFHE: caller does not have TFHE permissions to access addedValue argument"
+        );
+
+        euint64 senderSpenderAllowance = _getOrZero(_allowances[msg.sender][_spender]);
+
+        // Debug
+        require(
+            TFHE.isAllowed(senderSpenderAllowance, address(this)),
+            "TFHE: token does not have TFHE permissions to access allowance"
+        );
+
+        // _allowances[msg.sender][_spender] can be 0 or euint64
+        euint64 eaddedValue = TFHE.add(senderSpenderAllowance, _eaddedValue);
+
         _approve(msg.sender, _spender, eaddedValue);
+
         return true;
     }
 
@@ -119,6 +144,7 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         einput encryptedSubstractedValue,
         bytes calldata inputProof
     ) external virtual returns (bool) {
+        // TFHE.allowedTransient(TFHE.asEuint64(encryptedSubstractedValue, inputProof), msg.sender) == true
         return decreaseAllowance(_spender, TFHE.asEuint64(encryptedSubstractedValue, inputProof));
     }
 
@@ -126,9 +152,27 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      *  @dev See {ERC20-decreaseAllowance}.
      */
     function decreaseAllowance(address _spender, euint64 _esubtractedValue) public virtual returns (bool) {
-        require(TFHE.isSenderAllowed(_esubtractedValue));
-        euint64 esubstractedValue = TFHE.sub(_allowances[msg.sender][_spender], (_esubtractedValue));
+        /*
+            _approve(msg.sender, _spender, _allowances[msg.sender][_spender] - _subtractedValue);
+        */
+        require(euint64.unwrap(_esubtractedValue) != 0, "TFHE: subtractedValue argument cannot be uninitialized");
+        require(
+            TFHE.isSenderAllowed(_esubtractedValue),
+            "TFHE: caller does not have TFHE permissions to access subtractedValue argument"
+        );
+
+        euint64 senderSpenderAllowance = _getOrZero(_allowances[msg.sender][_spender]);
+
+        // Debug
+        require(
+            TFHE.isAllowed(senderSpenderAllowance, address(this)),
+            "TFHE: token does not have TFHE permissions to access allowance"
+        );
+
+        // returns 0 if lhs < rhs
+        euint64 esubstractedValue = _clampedSub(senderSpenderAllowance, _esubtractedValue);
         _approve(msg.sender, _spender, esubstractedValue);
+
         return true;
     }
 
@@ -178,9 +222,22 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
     /**
      *  @dev See {IToken-batchTransfer}.
      */
-    function batchTransfer(address[] calldata _toList, euint64[] calldata _amounts) external override {
+    function batchTransfer(
+        address[] calldata _toList,
+        einput[] calldata encryptedAmounts,
+        bytes calldata inputProof
+    ) public override {
         for (uint256 i = 0; i < _toList.length; i++) {
-            transfer(_toList[i], _amounts[i]);
+            transfer(_toList[i], TFHE.asEuint64(encryptedAmounts[i], inputProof));
+        }
+    }
+
+    /**
+     *  @dev See {IToken-batchTransfer}.
+     */
+    function batchTransfer(address[] calldata _toList, euint64[] calldata _eamounts) public override {
+        for (uint256 i = 0; i < _toList.length; i++) {
+            transfer(_toList[i], _eamounts[i]);
         }
     }
 
@@ -193,6 +250,7 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         einput encryptedAmount,
         bytes calldata inputProof
     ) public override whenNotPaused returns (bool) {
+        // TFHE.allowedTransient(TFHE.asEuint64(encryptedAmount, inputProof), msg.sender) == true
         return transferFrom(_from, _to, TFHE.asEuint64(encryptedAmount, inputProof));
     }
 
@@ -207,31 +265,138 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      *  @return `true` if successful and revert if unsuccessful
      */
     function transferFrom(address _from, address _to, euint64 _eamount) public override whenNotPaused returns (bool) {
-        require(TFHE.isSenderAllowed(_eamount));
         require(!_frozen[_to] && !_frozen[_from], "wallet is frozen");
-        euint64 emaxAmount = TFHE.sub(balanceOf(_from), (_frozenTokens[_from]));
-        ebool ehasSufficientBalance = TFHE.le(_eamount, emaxAmount);
-        euint64 eamount = TFHE.select(ehasSufficientBalance, _eamount, TFHE.asEuint64(0));
+        require(
+            TFHE.isSenderAllowed(_eamount),
+            "TFHE: caller does not have TFHE permissions to access amount argument"
+        );
+
+        euint64 fromFrozenTokens = _getOrZero(_frozenTokens[_from]);
+        euint64 fromBalance = _getOrZero(balanceOf(_from));
+        euint64 fromSenderAllowance = _getOrZero(_allowances[_from][msg.sender]);
+
+        // Debug
+        require(
+            TFHE.isAllowed(fromFrozenTokens, address(this)),
+            "TFHE: token does not have TFHE permissions to access frozen token"
+        );
+        // Debug
+        require(
+            TFHE.isAllowed(fromBalance, address(this)),
+            "TFHE: token does not have TFHE permissions to access balance"
+        );
+        // Debug
+        require(
+            TFHE.isAllowed(fromSenderAllowance, address(this)),
+            "TFHE: token does not have TFHE permissions to access allowances"
+        );
+
+        // 'balanceOf(_from)' is always greater than '_frozenTokens[_from]'
+        // if _eamount <= balanceOf(_from) - _frozenTokens[_from]
+        // then eamount = _eamount
+        // otherwise eamount = 0
+        euint64 eamount = _selectLeSub(_eamount, fromBalance, fromFrozenTokens);
 
         if (_tokenIdentityRegistry.isVerified(_to)) {
-            ebool ecanTransfer = _tokenCompliance.canTransfer(_from, _to, eamount);
-            eamount = TFHE.select(ecanTransfer, eamount, TFHE.asEuint64(0));
-            _approve(_from, msg.sender, TFHE.sub(_allowances[_from][msg.sender], eamount));
-            _transfer(_from, _to, eamount);
+            // give _tokenCompliance TFHE access for:
+            // - canTransfer(...)
+            // - transferred(...)
             TFHE.allowTransient(eamount, address(_tokenCompliance));
+
+            ebool ecanTransfer = _tokenCompliance.canTransfer(_from, _to, eamount);
+
+            // if canTransfer failed, set the amount to 0
+            eamount = TFHE.select(ecanTransfer, eamount, TFHE.asEuint64(0));
+
+            //_approve(_from, msg.sender, _allowances[_from][msg.sender] - (_amount))
+            _approve(_from, msg.sender, _clampedSub(fromSenderAllowance, eamount));
+
+            // give _tokenCompliance TFHE access for:
+            // - canTransfer(...)
+            // - transferred(...)
+            TFHE.allowTransient(eamount, address(_tokenCompliance));
+
+            //_transfer(_from, _to, _amount);
+            _transfer(_from, _to, eamount);
+
+            //_tokenCompliance.transferred(_from, _to, _amount);
             _tokenCompliance.transferred(_from, _to, eamount);
+
             return true;
         }
+
         revert("Transfer not possible");
 
-        // require(_amount <= balanceOf(_from) - (_frozenTokens[_from]), "Insufficient Balance");
-        // if (_tokenIdentityRegistry.isVerified(_to) && _tokenCompliance.canTransfer(_from, _to, _amount)) {
-        //     _approve(_from, msg.sender, _allowances[_from][msg.sender] - (_amount));
-        //     _transfer(_from, _to, _amount);
-        //     _tokenCompliance.transferred(_from, _to, _amount);
-        //     return true;
-        // }
-        // revert("Transfer not possible");
+        // // require(_amount <= balanceOf(_from) - (_frozenTokens[_from]), "Insufficient Balance");
+        // // if (_tokenIdentityRegistry.isVerified(_to) && _tokenCompliance.canTransfer(_from, _to, _amount)) {
+        // //     _approve(_from, msg.sender, _allowances[_from][msg.sender] - (_amount));
+        // //     _transfer(_from, _to, _amount);
+        // //     _tokenCompliance.transferred(_from, _to, _amount);
+        // //     return true;
+        // // }
+        // // revert("Transfer not possible");
+    }
+
+    /*
+
+    // Transfers `amount` tokens using the caller's allowance.
+    function transferFrom(address from, address to, euint64 amount) public virtual returns (bool) {
+        require(TFHE.isSenderAllowed(amount));
+        address spender = msg.sender;
+        ebool isTransferable = _updateAllowance(from, spender, amount);
+        _transfer(from, to, amount, isTransferable);
+        return true;
+    }
+
+    function _approve(address owner, address spender, euint64 amount) internal virtual {
+        _allowances[owner][spender] = amount;
+        TFHE.allow(amount, address(this));
+        TFHE.allow(amount, owner);
+        TFHE.allow(amount, spender);
+    }
+
+    function _allowance(address owner, address spender) internal view virtual returns (euint64) {
+        return _allowances[owner][spender];
+    }
+
+    function _updateAllowance(address owner, address spender, euint64 amount) internal virtual returns (ebool) {
+        euint64 currentAllowance = _allowance(owner, spender);
+        // makes sure the allowance suffices
+        ebool allowedTransfer = TFHE.le(amount, currentAllowance);
+        // makes sure the owner has enough tokens
+        ebool canTransfer = TFHE.le(amount, _balances[owner]);
+        ebool isTransferable = TFHE.and(canTransfer, allowedTransfer);
+        _approve(owner, spender, TFHE.select(isTransferable, TFHE.sub(currentAllowance, amount), currentAllowance));
+        return isTransferable;
+    }
+
+    function _approve(address _owner, address _spender, euint64 _amount) internal virtual {
+        require(_owner != address(0), "ERC20: approve from the zero address");
+        require(_spender != address(0), "ERC20: approve to the zero address");
+
+        _allowances[_owner][_spender] = _amount;
+
+        TFHE.allow(_amount, address(this));
+        TFHE.allow(_amount, _owner);
+        TFHE.allow(_amount, _spender);
+
+        emit Approval(_owner, _spender, _amount);
+    }
+
+*/
+
+    /**
+     *  @dev See {IToken-batchForcedTransfer}.
+     */
+    function batchForcedTransfer(
+        address[] calldata _fromList,
+        address[] calldata _toList,
+        einput[] calldata encryptedAmounts,
+        bytes calldata inputProof
+    ) public override {
+        for (uint256 i = 0; i < _toList.length; i++) {
+            forcedTransfer(_fromList[i], _toList[i], TFHE.asEuint64(encryptedAmounts[i], inputProof));
+        }
     }
 
     /**
@@ -241,7 +406,7 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         address[] calldata _fromList,
         address[] calldata _toList,
         euint64[] calldata _amounts
-    ) external override {
+    ) public override {
         for (uint256 i = 0; i < _fromList.length; i++) {
             forcedTransfer(_fromList[i], _toList[i], _amounts[i]);
         }
@@ -272,7 +437,20 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
     /**
      *  @dev See {IToken-batchBurn}.
      */
-    function batchBurn(address[] calldata _userAddresses, euint64[] calldata _eamounts) external override {
+    function batchBurn(
+        address[] calldata _toList,
+        einput[] calldata _eamounts,
+        bytes calldata inputProof
+    ) public override {
+        for (uint256 i = 0; i < _toList.length; i++) {
+            burn(_toList[i], TFHE.asEuint64(_eamounts[i], inputProof));
+        }
+    }
+
+    /**
+     *  @dev See {IToken-batchBurn}.
+     */
+    function batchBurn(address[] calldata _userAddresses, euint64[] calldata _eamounts) public override {
         for (uint256 i = 0; i < _userAddresses.length; i++) {
             burn(_userAddresses[i], _eamounts[i]);
         }
@@ -319,26 +497,20 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         address _newWallet,
         address _investorOnchainID
     ) external override onlyAgent returns (bool) {
-        //require(balanceOf(_lostWallet) != 0, "no tokens to recover");
+        require(euint64.unwrap(balanceOf(_lostWallet)) != 0, "no tokens to recover");
+
         IIdentity _onchainID = IIdentity(_investorOnchainID);
         bytes32 _key = keccak256(abi.encode(_newWallet));
         if (_onchainID.keyHasPurpose(_key, 1)) {
-            euint64 investorTokens = balanceOf(_lostWallet);
+            euint64 investorTokens = _getOrZero(balanceOf(_lostWallet));
+            euint64 frozenTokens = _getOrZero(_frozenTokens[_lostWallet]);
 
-            console.log("recoveryAddress msg.sender=%s", msg.sender);
-            bool ok1 = TFHE.isAllowed(investorTokens, msg.sender);
-            console.log("investorTokens msg.sender=%s", ok1);
-            bool ok2 = TFHE.isAllowed(investorTokens, address(this));
-            console.log("investorTokens address(this)=%s", ok2);
-            //debugAllowEuint64(investorTokens);
-            (Token(address(this))).debugAllowEuint64(investorTokens, msg.sender);
-
-            euint64 frozenTokens = _frozenTokens[_lostWallet];
             _tokenIdentityRegistry.registerIdentity(
                 _newWallet,
                 _onchainID,
                 _tokenIdentityRegistry.investorCountry(_lostWallet)
             );
+
             forcedTransfer(_lostWallet, _newWallet, investorTokens);
             freezePartialTokens(_newWallet, frozenTokens);
 
@@ -459,24 +631,56 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      */
     function transfer(address _to, euint64 _eamount) public override whenNotPaused returns (bool) {
         require(!_frozen[_to] && !_frozen[msg.sender], "wallet is frozen");
-        require(TFHE.isSenderAllowed(_eamount));
-        euint64 emaxAmount = TFHE.sub(balanceOf(msg.sender), (_frozenTokens[msg.sender]));
-        ebool ehasSufficientBalance = TFHE.le(_eamount, emaxAmount);
-        euint64 eamount = TFHE.select(ehasSufficientBalance, _eamount, TFHE.asEuint64(0));
+        require(
+            TFHE.isSenderAllowed(_eamount),
+            "TFHE: caller does not have TFHE permissions to access amount argument"
+        );
+
+        euint64 senderBalance = _getOrZero(balanceOf(msg.sender));
+        euint64 senderFrozenTokens = _getOrZero(_frozenTokens[msg.sender]);
+
+        // Debug
+        require(
+            TFHE.isAllowed(senderBalance, address(this)),
+            "TFHE: token does not have TFHE permissions to access balance"
+        );
+        // Debug
+        require(
+            TFHE.isAllowed(senderFrozenTokens, address(this)),
+            "TFHE: token does not have TFHE permissions to access frozen tokens"
+        );
+
+        // always valid
+        euint64 eamount = _selectLeSub(_eamount, senderBalance, senderFrozenTokens);
+
         if (_tokenIdentityRegistry.isVerified(_to)) {
-            ebool ecanTransfer = _tokenCompliance.canTransfer(msg.sender, _to, eamount);
-            eamount = TFHE.select(ecanTransfer, eamount, TFHE.asEuint64(0));
+            // give _tokenCompliance TFHE access for 'canTransfer(...)'
             TFHE.allowTransient(eamount, address(_tokenCompliance));
+
+            //_tokenCompliance.canTransfer(msg.sender, _to, _amount)
+            ebool ecanTransfer = _tokenCompliance.canTransfer(msg.sender, _to, eamount);
+
+            // if canTransfer failed, set the amount to 0
+            eamount = TFHE.select(ecanTransfer, eamount, TFHE.asEuint64(0));
+
+            //_transfer(msg.sender, _to, _amount)
             _transfer(msg.sender, _to, eamount);
+
+            // give _tokenCompliance TFHE access for 'transferred(...)'
+            TFHE.allowTransient(eamount, address(_tokenCompliance));
+
+            //_tokenCompliance.transferred(msg.sender, _to, _amount)
             _tokenCompliance.transferred(msg.sender, _to, eamount);
+
             return true;
         }
+
         revert("Transfer not possible");
 
         // require(!_frozen[_to] && !_frozen[msg.sender], "wallet is frozen");
         // require(_amount <= balanceOf(msg.sender) - (_frozenTokens[msg.sender]), "Insufficient Balance");
         // if (_tokenIdentityRegistry.isVerified(_to) && _tokenCompliance.canTransfer(msg.sender, _to, _amount)) {
-        //     _transfer(msg.sender, _to, _amount);
+        //     4(msg.sender, _to, _amount);
         //     _tokenCompliance.transferred(msg.sender, _to, _amount);
         //     return true;
         // }
@@ -495,54 +699,35 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         return forcedTransfer(_from, _to, TFHE.asEuint64(encryptedAmount, inputProof));
     }
 
-    function debugAllowEuint64(euint64 _handle, address to) public {
-        require(TFHE.isSenderAllowed(_handle), "I don't have the permission");
-        //TFHE.allowTransient(_handle, to);
-        console.log("AAA %s", msg.sender);
-        console.log("AAA %s", address(this));
-
-        console.log("   debugAllowEuint64 msg.sender=%s", msg.sender);
-        bool ok1 = TFHE.isAllowed(_handle, msg.sender);
-        console.log("       _handle msg.sender=%s", ok1);
-        bool ok2 = TFHE.isAllowed(_handle, address(this));
-        console.log("       _handle address(this)=%s", ok2);
-        bool ok3 = TFHE.isAllowed(_handle, to);
-        console.log("       _handle to=%s", ok3);
-
-        TFHE.allow(_handle, to);
-
-        console.log("   AFTER msg.sender=%s", msg.sender);
-        ok1 = TFHE.isAllowed(_handle, msg.sender);
-        console.log("       _handle msg.sender=%s", ok1);
-        ok2 = TFHE.isAllowed(_handle, address(this));
-        console.log("       _handle address(this)=%s", ok2);
-        ok3 = TFHE.isAllowed(_handle, to);
-        console.log("       _handle to=%s", ok3);
-    }
-
     /**
      *  @dev See {IToken-forcedTransfer}.
      */
     function forcedTransfer(address _from, address _to, euint64 _eamount) public override onlyAgent returns (bool) {
         require(
             TFHE.isSenderAllowed(_eamount) || TFHE.isAllowed(_eamount, address(this)),
-            "Not allowed to access encrypted handle"
+            "TFHE: agent does not have TFHE permissions to access amount argument"
         );
-        euint64 ebalanceFrom = balanceOf(_from);
-        // console.log("AAAA %s", msg.sender);
-        // (Token(address(this))).debugAllowEuint64(_eamount);
-        // console.log("AAAA1");
-        // (Token(this)).debugAllowEuint64(ebalanceFrom);
-        // console.log("AAAA2");
+
+        euint64 fromBalance = _getOrZero(balanceOf(_from));
+        euint64 fromFrozenTokens = _getOrZero(_frozenTokens[_from]);
+
+        // Debug
+        require(
+            TFHE.isAllowed(fromBalance, address(this)),
+            "TFHE: token does not have TFHE permissions to access balance"
+        );
+        // Debug
+        require(
+            TFHE.isAllowed(fromFrozenTokens, address(this)),
+            "TFHE: token does not have TFHE permissions to access frozen tokens"
+        );
 
         // require(balanceOf(_from) >= _amount, "sender balance too low");
-        ebool ehasBalance = TFHE.ge(ebalanceFrom, _eamount);
-        console.log("ehasBalance= %s", ebool.unwrap(ehasBalance));
+        ebool ehasBalance = TFHE.ge(fromBalance, _eamount);
         euint64 eamount = TFHE.select(ehasBalance, _eamount, TFHE.asEuint64(0));
-        console.log("eamount= %s", euint64.unwrap(eamount));
 
         // uint256 freeBalance = balanceOf(_from) - (_frozenTokens[_from]);
-        euint64 efreeBalance = TFHE.sub(ebalanceFrom, (_frozenTokens[_from]));
+        euint64 efreeBalance = TFHE.sub(fromBalance, fromFrozenTokens);
 
         //(_amount > freeBalance) && (balanceOf(_from) >= _amount)
         ebool ecanUnfreeze = TFHE.gt(_eamount, efreeBalance);
@@ -553,17 +738,31 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         etokensToUnfreeze = TFHE.select(ecanUnfreeze, etokensToUnfreeze, TFHE.asEuint64(0));
 
         //_frozenTokens[_from] = _frozenTokens[_from] - (tokensToUnfreeze)
-        _frozenTokens[_from] = TFHE.sub(_frozenTokens[_from], (etokensToUnfreeze));
+        euint64 newFromFrozenTokens = TFHE.sub(fromFrozenTokens, (etokensToUnfreeze));
+        _frozenTokens[_from] = newFromFrozenTokens;
+
+        // update frozen tokens permissions
+        TFHE.allow(newFromFrozenTokens, _from);
+        TFHE.allow(newFromFrozenTokens, address(this));
+        // TFHE.allow(newFromFrozenTokens, msg.sender); //agent
+        // allowAgents(newFromFrozenTokens);
+
         emit TokensUnfrozen(_from, etokensToUnfreeze);
 
         if (_tokenIdentityRegistry.isVerified(_to)) {
-            _transfer(_from, _to, eamount);
+            // give _tokenCompliance TFHE access for:
+            // - transferred(...)
             TFHE.allowTransient(eamount, address(_tokenCompliance));
+
+            //_transfer(_from, _to, _amount)
+            _transfer(_from, _to, eamount);
+
+            //_tokenCompliance.transferred(_from, _to, _amount)
             _tokenCompliance.transferred(_from, _to, eamount);
 
-            console.log("OK");
             return true;
         }
+
         revert("Transfer not possible");
 
         // require(balanceOf(_from) >= _amount, "sender balance too low");
@@ -594,14 +793,24 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      */
     function mint(address _to, euint64 _eamount) public override onlyAgent {
         require(_tokenIdentityRegistry.isVerified(_to), "Identity is not verified.");
-        require(TFHE.isSenderAllowed(_eamount));
+        require(TFHE.isSenderAllowed(_eamount), "TFHE: agent does not have TFHE permissions to access amount argument");
+        require(euint64.unwrap(_eamount) != 0, "Uninitialized amount argument");
+
+        // give _tokenCompliance TFHE access for:
+        // - canTransfer(...)
+        TFHE.allowTransient(_eamount, address(_tokenCompliance));
 
         ebool ecanTransfer = _tokenCompliance.canTransfer(address(0), _to, _eamount);
+
+        // if canTransfer failed set amount to 0
         euint64 eamount = TFHE.select(ecanTransfer, _eamount, TFHE.asEuint64(0));
 
         _mint(_to, eamount);
 
+        // give _tokenCompliance TFHE access for:
+        // - created(...)
         TFHE.allowTransient(eamount, address(_tokenCompliance));
+
         _tokenCompliance.created(_to, eamount);
     }
 
@@ -627,26 +836,50 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         // _tokenCompliance.destroyed(_userAddress, _amount);
 
         require(_userAddress != address(0), "ERC20: burn from the zero address");
-        require(TFHE.isSenderAllowed(_eamount));
+        require(TFHE.isSenderAllowed(_eamount), "TFHE: agent does not have TFHE permissions to access amount argument");
 
-        euint64 a = TFHE.sub(balanceOf(_userAddress), _eamount);
-        euint64 b = TFHE.sub(_frozenTokens[_userAddress], a);
+        euint64 userFrozenTokens = _getOrZero(_frozenTokens[_userAddress]);
+        euint64 userBalance = _getOrZero(balanceOf(_userAddress));
 
-        ebool ecanBurn = TFHE.ge(balanceOf(_userAddress), _eamount);
-        ebool ecanUnfreeze = TFHE.gt(_frozenTokens[_userAddress], a);
+        // Debug
+        require(
+            TFHE.isAllowed(userBalance, address(this)),
+            "TFHE: token does not have TFHE permissions to access balance"
+        );
+        // Debug
+        require(
+            TFHE.isAllowed(userFrozenTokens, address(this)),
+            "TFHE: token does not have TFHE permissions to access frozen tokens"
+        );
+
+        euint64 a = TFHE.sub(userBalance, _eamount);
+        euint64 b = TFHE.sub(userFrozenTokens, a);
+
+        ebool ecanBurn = TFHE.ge(userBalance, _eamount);
+        ebool ecanUnfreeze = TFHE.gt(userFrozenTokens, a);
 
         ebool ecanBurnAndUnfreeze = TFHE.and(ecanBurn, ecanUnfreeze);
 
         euint64 etokensToUnfreeze = TFHE.select(ecanBurnAndUnfreeze, b, TFHE.asEuint64(0));
-        euint64 enewFrozenTokens = TFHE.sub(_frozenTokens[_userAddress], etokensToUnfreeze);
+        euint64 newUserFrozenTokens = TFHE.sub(userFrozenTokens, etokensToUnfreeze);
         euint64 eamount = TFHE.select(ecanBurn, _eamount, TFHE.asEuint64(0));
 
-        _frozenTokens[_userAddress] = enewFrozenTokens;
+        _frozenTokens[_userAddress] = newUserFrozenTokens;
+
+        // update frozen tokens permissions
+        TFHE.allow(newUserFrozenTokens, address(this));
+        TFHE.allow(newUserFrozenTokens, _userAddress);
+        // TFHE.allow(newUserFrozenTokens, msg.sender);
+        // allowAgents(newUserFrozenTokens);
+
         emit TokensUnfrozen(_userAddress, etokensToUnfreeze);
 
         _burn(_userAddress, eamount);
 
+        // give _tokenCompliance TFHE access for:
+        // - destroyed(...)
         TFHE.allowTransient(eamount, address(_tokenCompliance));
+
         _tokenCompliance.destroyed(_userAddress, eamount);
 
         /*
@@ -666,13 +899,6 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         _amount - (freeBalance) = _frozenTokens[_userAddress] - a
         _amount - (freeBalance) = b
         */
-    }
-
-    function _unfreeze(address _from, euint64 _eamount) internal virtual {
-        require(_from != address(0), "ERC20: unfreeze from the zero address");
-
-        _frozenTokens[_from] = TFHE.sub(_frozenTokens[_from], _eamount);
-        emit TokensUnfrozen(_from, _eamount);
     }
 
     /**
@@ -701,25 +927,41 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      *  FHE: If amount exceeds balance, freeze zero instead
      */
     function freezePartialTokens(address _userAddress, euint64 _eamount) public override onlyAgent {
-        console.log("freezePartialTokens= HELLO");
         // require(balance >= _frozenTokens[_userAddress] + _amount, "Amount exceeds available balance");
         // _frozenTokens[_userAddress] = _frozenTokens[_userAddress] + (_amount);
         // emit TokensFrozen(_userAddress, _amount);
-        require(TFHE.isSenderAllowed(_eamount));
+        require(
+            TFHE.isSenderAllowed(_eamount) || TFHE.isAllowed(_eamount, address(this)),
+            "TFHE: agent does not have TFHE permissions to access amount argument"
+        );
 
-        euint64 ft = (euint64.unwrap(_frozenTokens[_userAddress]) == 0)
-            ? TFHE.asEuint64(0)
-            : _frozenTokens[_userAddress];
+        euint64 userFrozenTokens = _getOrZero(_frozenTokens[_userAddress]);
+        euint64 userBalance = _getOrZero(balanceOf(_userAddress));
 
-        euint64 ebalance = balanceOf(_userAddress);
-        euint64 enewFrozen = TFHE.add(ft, _eamount);
-        ebool ecanFreeze = TFHE.ge(ebalance, enewFrozen);
+        // Debug
+        require(
+            TFHE.isAllowed(userBalance, address(this)),
+            "TFHE: token does not have TFHE permissions to access balance"
+        );
+        // Debug
+        require(
+            TFHE.isAllowed(userFrozenTokens, address(this)),
+            "TFHE: token does not have TFHE permissions to access frozen tokens"
+        );
+
+        euint64 enewFrozen = TFHE.add(userFrozenTokens, _eamount);
+
+        ebool ecanFreeze = TFHE.ge(userBalance, enewFrozen);
         euint64 eamount = TFHE.select(ecanFreeze, _eamount, TFHE.asEuint64(0));
-        euint64 newFrozenTokens = TFHE.select(ecanFreeze, enewFrozen, ft);
+        euint64 newUserFrozenTokens = TFHE.select(ecanFreeze, enewFrozen, userFrozenTokens);
 
-        _frozenTokens[_userAddress] = newFrozenTokens;
-        TFHE.allow(newFrozenTokens, msg.sender);
-        TFHE.allow(newFrozenTokens, address(this));
+        _frozenTokens[_userAddress] = newUserFrozenTokens;
+
+        // update frozen tokens permissions
+        TFHE.allow(newUserFrozenTokens, address(this));
+        TFHE.allow(newUserFrozenTokens, _userAddress);
+        // TFHE.allow(newUserFrozenTokens, msg.sender); //agent
+        // allowAgents(newUserFrozenTokens);
 
         emit TokensFrozen(_userAddress, eamount);
     }
@@ -739,14 +981,31 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      *  @dev See {IToken-unfreezePartialTokens}.
      */
     function unfreezePartialTokens(address _userAddress, euint64 _eamount) public override onlyAgent {
+        euint64 userFrozenTokens = _getOrZero(_frozenTokens[_userAddress]);
+
         // require(_frozenTokens[_userAddress] >= _amount, "Amount should be less than or equal to frozen tokens");
         // _frozenTokens[_userAddress] = _frozenTokens[_userAddress] - (_amount);
         // emit TokensUnfrozen(_userAddress, _amount);
-        require(TFHE.isSenderAllowed(_eamount));
 
-        ebool ecanUnfreeze = TFHE.ge(_frozenTokens[_userAddress], _eamount);
+        require(euint64.unwrap(userFrozenTokens) != 0, "User has no frozen tokens");
+        require(TFHE.isSenderAllowed(_eamount), "TFHE: agent does not have TFHE permissions to access amount argument");
+        // Debug
+        require(
+            TFHE.isAllowed(userFrozenTokens, address(this)),
+            "TFHE: token does not have TFHE permissions to access frozen tokens"
+        );
+
+        ebool ecanUnfreeze = TFHE.ge(userFrozenTokens, _eamount);
         euint64 eamount = TFHE.select(ecanUnfreeze, _eamount, TFHE.asEuint64(0));
-        _frozenTokens[_userAddress] = TFHE.sub(_frozenTokens[_userAddress], (eamount));
+
+        euint64 newUserFrozenTokens = TFHE.sub(userFrozenTokens, (eamount));
+
+        _frozenTokens[_userAddress] = newUserFrozenTokens;
+
+        TFHE.allow(newUserFrozenTokens, address(this));
+        TFHE.allow(newUserFrozenTokens, _userAddress);
+        // TFHE.allow(newUserFrozenTokens, msg.sender); // agent
+        // allowAgents(newUserFrozenTokens);
 
         emit TokensUnfrozen(_userAddress, eamount);
     }
@@ -768,6 +1027,11 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         }
         _tokenCompliance = IModularCompliance(_compliance);
         _tokenCompliance.bindToken(address(this));
+
+        if (euint64.unwrap(_totalSupply) != 0) {
+            TFHE.allow(_totalSupply, address(_tokenCompliance)); // give TFHE access to compliance
+        }
+
         emit ComplianceAdded(_compliance);
     }
 
@@ -785,6 +1049,12 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         require(_from != address(0), "ERC20: transfer from the zero address");
         require(_to != address(0), "ERC20: transfer to the zero address");
 
+        // Debug
+        require(
+            TFHE.isAllowed(_eamount, address(this)),
+            "TFHE: token does not have TFHE permissions to access amount argument"
+        );
+
         _beforeTokenTransfer(_from, _to, _eamount);
 
         euint64 newBalanceFrom = TFHE.sub(_balances[_from], _eamount);
@@ -795,10 +1065,13 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
 
         TFHE.allow(newBalanceFrom, address(this));
         TFHE.allow(newBalanceFrom, _from);
+        //allowAgents(newBalanceFrom);
+
         TFHE.allow(newBalanceTo, address(this));
         TFHE.allow(newBalanceTo, _to);
+        //allowAgents(newBalanceTo);
 
-        console.log("TRANSFER");
+        //console.log("TRANSFER");
 
         // _balances[_from] = _balances[_from] - _amount;
         // _balances[_to] = _balances[_to] + _amount;
@@ -808,18 +1081,48 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
     /**
      *  @dev See {ERC20-_mint}.
      */
-    function _mint(address _userAddress, euint64 _eamount) internal virtual onlyAgent {
+    function _mint(address _userAddress, euint64 _eamount) internal virtual {
         require(_userAddress != address(0), "ERC20: mint to the zero address");
 
+        // Debug
+        require(
+            TFHE.isAllowed(_eamount, address(this)),
+            "TFHE: token does not have TFHE permissions to access amount argument"
+        );
+
         _beforeTokenTransfer(address(0), _userAddress, _eamount);
+
+        // Debug
+        require(
+            euint64.unwrap(_totalSupply) == 0 || TFHE.isAllowed(_totalSupply, address(this)),
+            "TFHE: token does not have TFHE permissions to access totalSupply"
+        );
+        // Debug
+        require(
+            euint64.unwrap(_balances[_userAddress]) == 0 || TFHE.isAllowed(_balances[_userAddress], address(this)),
+            "TFHE: token does not have TFHE permissions to access balance"
+        );
 
         _totalSupply = TFHE.add(_totalSupply, _eamount);
         _balances[_userAddress] = TFHE.add(_balances[_userAddress], _eamount);
 
         TFHE.allow(_balances[_userAddress], address(this));
         TFHE.allow(_balances[_userAddress], _userAddress);
-        TFHE.allow(_balances[_userAddress], msg.sender); //onlyAgent!
+        // TFHE.allow(_balances[_userAddress], msg.sender); //agent
+        // allowAgents(_balances[_userAddress]);
+
+        // _totalSupply is a shared value accessible to all agents
         TFHE.allow(_totalSupply, address(this));
+        TFHE.allow(_totalSupply, address(_tokenCompliance)); // give TFHE access to compliance
+
+        // console.log(
+        //     "MINT tokenCompliance=%s allowed=%s handle=%s",
+        //     address(_tokenCompliance),
+        //     TFHE.isAllowed(_totalSupply, address(_tokenCompliance)),
+        //     euint64.unwrap(_totalSupply)
+        // );
+        // TFHE.allow(_totalSupply, msg.sender); //agent
+        // allowAgents(_totalSupply); //allow other agents
 
         emit Transfer(address(0), _userAddress, _eamount);
     }
@@ -830,14 +1133,38 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
     function _burn(address _userAddress, euint64 _eamount) internal virtual {
         require(_userAddress != address(0), "ERC20: burn from the zero address");
 
+        // Debug
+        require(
+            TFHE.isAllowed(_eamount, address(this)),
+            "TFHE: token does not have TFHE permissions to access amount argument"
+        );
+
         _beforeTokenTransfer(_userAddress, address(0), _eamount);
+
+        // Debug
+        require(
+            euint64.unwrap(_totalSupply) == 0 || TFHE.isAllowed(_totalSupply, address(this)),
+            "TFHE: token does not have TFHE permissions to access totalSupply"
+        );
+        // Debug
+        require(
+            euint64.unwrap(_balances[_userAddress]) == 0 || TFHE.isAllowed(_balances[_userAddress], address(this)),
+            "TFHE: token does not have TFHE permissions to access balance"
+        );
 
         _balances[_userAddress] = TFHE.sub(_balances[_userAddress], _eamount);
         _totalSupply = TFHE.sub(_totalSupply, _eamount);
 
         TFHE.allow(_balances[_userAddress], address(this));
         TFHE.allow(_balances[_userAddress], _userAddress);
+        // TFHE.allow(_balances[_userAddress], msg.sender); //agent
+        // allowAgents(_balances[_userAddress]);
+
+        // _totalSupply is a shared value accessible to all agents
         TFHE.allow(_totalSupply, address(this));
+        TFHE.allow(_totalSupply, address(_tokenCompliance)); // give TFHE access to compliance
+        // TFHE.allow(_totalSupply, msg.sender); //agent
+        // allowAgents(_totalSupply); //allow other agents
 
         emit Transfer(_userAddress, address(0), _eamount);
     }
@@ -845,17 +1172,26 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
     /**
      *  @dev See {ERC20-_approve}.
      */
-    function _approve(address _owner, address _spender, euint64 _amount) internal virtual {
+    function _approve(address _owner, address _spender, euint64 _eamount) internal virtual {
         require(_owner != address(0), "ERC20: approve from the zero address");
         require(_spender != address(0), "ERC20: approve to the zero address");
 
-        _allowances[_owner][_spender] = _amount;
+        // Debug
+        require(
+            TFHE.isAllowed(_eamount, address(this)),
+            "TFHE: token does not have TFHE permissions to access amount argument"
+        );
 
-        TFHE.allow(_amount, address(this));
-        TFHE.allow(_amount, _owner);
-        TFHE.allow(_amount, _spender);
+        _allowances[_owner][_spender] = _eamount;
 
-        emit Approval(_owner, _spender, _amount);
+        // Stored by 'this', keep TFHE permissions.
+        TFHE.allow(_eamount, address(this));
+        // Allow '_owner' TFHE persmissions for external access.
+        TFHE.allow(_eamount, _owner);
+        // Allow '_spender' TFHE persmissions for external access.
+        TFHE.allow(_eamount, _spender);
+
+        emit Approval(_owner, _spender, _eamount);
     }
 
     /**
@@ -863,4 +1199,30 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
      */
     // solhint-disable-next-line no-empty-blocks
     function _beforeTokenTransfer(address _from, address _to, euint64 _amount) internal virtual {}
+
+    /**
+     * return (a <= b - c) ? a : 0
+     */
+    function _selectLeSub(euint64 a, euint64 b, euint64 c) private returns (euint64) {
+        ebool cond = TFHE.le(a, TFHE.sub(b, c));
+        return TFHE.select(cond, a, TFHE.asEuint64(0));
+    }
+
+    /**
+     * @dev returns euint64(0) if lhs < rhs otherwise (lhs - rhs)
+     * - lhs can be 0 (uninitialized)
+     * - rhs can be 0 (uninitialized)
+     */
+    function _clampedSub(euint64 lhs, euint64 rhs) private returns (euint64) {
+        ebool valid = TFHE.ge(lhs, rhs);
+        euint64 res = TFHE.sub(lhs, rhs);
+        return TFHE.select(valid, res, TFHE.asEuint64(0));
+    }
+
+    function _getOrZero(euint64 value) private returns (euint64) {
+        if (euint64.unwrap(value) != 0) {
+            return value;
+        }
+        return TFHE.asEuint64(0);
+    }
 }

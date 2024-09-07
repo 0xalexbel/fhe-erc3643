@@ -19,8 +19,8 @@ import 'hardhat-ignore-warnings';
  */
 import 'hardhat-fhevm';
 import { HardhatUserConfig } from 'hardhat/config';
-//import './tasks';
-
+import './tasks';
+// Mnemonic = destroy enter release essence little zero narrow human system city eye hour matrix cook sunset enrich shallow focus float half bench detect gain sand
 const config: HardhatUserConfig = {
   solidity: {
     version: '0.8.24',
@@ -30,6 +30,12 @@ const config: HardhatUserConfig = {
         enabled: true,
         runs: 200,
       },
+    },
+  },
+  networks: {
+    zama: {
+      chainId: 8009,
+      url: 'https://devnet.zama.ai',
     },
   },
   // required to silence all fhevm solidity warnings

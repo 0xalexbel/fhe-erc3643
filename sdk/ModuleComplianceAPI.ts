@@ -37,13 +37,18 @@ export class ModularComplianceAPI {
    * Requirements:
    * - ModularCompliance.owner === owner
    */
-  static async addModule(compliance: ModularCompliance, module: IModule, owner: EthersT.Signer, options?: TxOptions) {
+  static async addModule(
+    compliance: ModularCompliance,
+    module: IModule,
+    complianceOwner: EthersT.Signer,
+    options?: TxOptions,
+  ) {
     const moduleAddress = await module.getAddress();
     if (moduleAddress === EthersT.ZeroAddress) {
       throw new Error(`Invalid module address ${moduleAddress}`);
     }
 
-    const hasModule = await this.hasModule(compliance, module, owner, options);
+    const hasModule = await this.hasModule(compliance, module, complianceOwner, options);
     if (hasModule) {
       // already added
       return;
@@ -59,7 +64,7 @@ export class ModularComplianceAPI {
       }
     }
 
-    await txWait(compliance.connect(owner).addModule(module), options);
+    await txWait(compliance.connect(complianceOwner).addModule(module), options);
   }
 
   static async hasModule(

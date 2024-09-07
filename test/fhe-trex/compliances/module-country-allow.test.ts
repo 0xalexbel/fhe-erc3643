@@ -421,61 +421,62 @@ describe('CountryAllowModule', () => {
     });
   });
 
-  describe('.moduleCheck', () => {
-    describe('when identity country is allowed', () => {
-      it('should return true', async () => {
-        const {
-          suite: { compliance, countryAllowModule },
-          accounts: { deployer, aliceWallet, bobWallet },
-        } = await deployComplianceWithCountryAllowModule();
-        const contract = await ethers.deployContract('MockContract');
-        await compliance.bindToken(contract);
+  // Invalid in FHEVM
+  // describe('.moduleCheck', () => {
+  //   describe('when identity country is allowed', () => {
+  //     it('should return true', async () => {
+  //       const {
+  //         suite: { compliance, countryAllowModule },
+  //         accounts: { deployer, aliceWallet, bobWallet },
+  //       } = await deployComplianceWithCountryAllowModule();
+  //       const contract = await ethers.deployContract('MockContract');
+  //       await compliance.bindToken(contract);
 
-        await compliance
-          .connect(deployer)
-          .callModuleFunction(
-            new ethers.Interface(['function batchAllowCountries(uint16[] calldata countries)']).encodeFunctionData(
-              'batchAllowCountries',
-              [[42, 66]],
-            ),
-            countryAllowModule,
-          );
+  //       await compliance
+  //         .connect(deployer)
+  //         .callModuleFunction(
+  //           new ethers.Interface(['function batchAllowCountries(uint16[] calldata countries)']).encodeFunctionData(
+  //             'batchAllowCountries',
+  //             [[42, 66]],
+  //           ),
+  //           countryAllowModule,
+  //         );
 
-        await contract.setInvestorCountry(42);
+  //       await contract.setInvestorCountry(42);
 
-        await expect(countryAllowModule.moduleCheck(aliceWallet.address, bobWallet.address, 10, compliance)).to.be
-          .eventually.true;
-        await expect(compliance.canTransfer(aliceWallet.address, bobWallet.address, 10)).to.be.eventually.true;
-      });
-    });
+  //       await expect(countryAllowModule.moduleCheck(aliceWallet.address, bobWallet.address, 10, compliance)).to.be
+  //         .eventually.true;
+  //       await expect(compliance.canTransfer(aliceWallet.address, bobWallet.address, 10)).to.be.eventually.true;
+  //     });
+  //   });
 
-    describe('when identity country is not allowed', () => {
-      it('should return false', async () => {
-        const {
-          suite: { compliance, countryAllowModule },
-          accounts: { deployer, aliceWallet, bobWallet },
-        } = await deployComplianceWithCountryAllowModule();
-        const contract = await ethers.deployContract('MockContract');
-        await compliance.bindToken(contract);
+  //   describe('when identity country is not allowed', () => {
+  //     it('should return false', async () => {
+  //       const {
+  //         suite: { compliance, countryAllowModule },
+  //         accounts: { deployer, aliceWallet, bobWallet },
+  //       } = await deployComplianceWithCountryAllowModule();
+  //       const contract = await ethers.deployContract('MockContract');
+  //       await compliance.bindToken(contract);
 
-        await compliance
-          .connect(deployer)
-          .callModuleFunction(
-            new ethers.Interface(['function batchAllowCountries(uint16[] calldata countries)']).encodeFunctionData(
-              'batchAllowCountries',
-              [[42, 66]],
-            ),
-            countryAllowModule,
-          );
+  //       await compliance
+  //         .connect(deployer)
+  //         .callModuleFunction(
+  //           new ethers.Interface(['function batchAllowCountries(uint16[] calldata countries)']).encodeFunctionData(
+  //             'batchAllowCountries',
+  //             [[42, 66]],
+  //           ),
+  //           countryAllowModule,
+  //         );
 
-        await contract.setInvestorCountry(10);
+  //       await contract.setInvestorCountry(10);
 
-        await expect(countryAllowModule.moduleCheck(aliceWallet.address, bobWallet.address, 16, compliance)).to.be
-          .eventually.false;
-        await expect(compliance.canTransfer(aliceWallet.address, bobWallet.address, 16)).to.be.eventually.false;
-      });
-    });
-  });
+  //       await expect(countryAllowModule.moduleCheck(aliceWallet.address, bobWallet.address, 16, compliance)).to.be
+  //         .eventually.false;
+  //       await expect(compliance.canTransfer(aliceWallet.address, bobWallet.address, 16)).to.be.eventually.false;
+  //     });
+  //   });
+  // });
 
   describe('.isComplianceBound()', () => {
     describe('when the address is a bound compliance', () => {

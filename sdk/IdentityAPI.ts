@@ -2,8 +2,9 @@ import { ethers as EthersT, id } from 'ethers';
 import { TxOptions } from './types';
 import { ClaimIssuer, Identity, Identity__factory, Ownable2Step__factory, Ownable__factory } from './artifacts';
 import { txWait } from './utils';
-import { ClaimIssuerAPI } from './ClaimIssuerAPI';
+import { ClaimIssuerAPI, SignedClaim } from './ClaimIssuerAPI';
 import { ChainConfig } from './ChainConfig';
+import { FheERC3643Error } from './errors';
 
 export const KEY_PURPOSE_MANAGEMENT = 1;
 export const KEY_PURPOSE_ACTION = 2;
@@ -43,7 +44,7 @@ export class IdentityAPI {
   ): Promise<boolean> {
     const hash = await this._toKey(key);
     if (hash === EthersT.ZeroHash) {
-      throw new Error('Invalid identity key');
+      throw new FheERC3643Error('Invalid identity key');
     }
     identity = runner ? identity.connect(runner) : identity;
     return await identity.keyHasPurpose(hash, purpose);
@@ -61,7 +62,7 @@ export class IdentityAPI {
     options?: TxOptions,
   ) {
     if (await this.keyHasPurpose(identity, key, KEY_PURPOSE_MANAGEMENT)) {
-      throw new Error(`Key ${await EthersT.resolveAddress(key)} is already a management key`);
+      throw new FheERC3643Error(`Key ${await EthersT.resolveAddress(key)} is already a management key`);
     }
     return this.addKey(identity, key, KEY_PURPOSE_MANAGEMENT, KEY_TYPE_ECDSA, manager, options);
   }
@@ -103,25 +104,25 @@ export class IdentityAPI {
     const hash = await this._toKey(key);
 
     if (hash === EthersT.ZeroHash) {
-      throw new Error('Invalid identity key');
+      throw new FheERC3643Error('Invalid identity key');
     }
 
     if (!(await this.isManager(identity, manager))) {
-      throw new Error(
+      throw new FheERC3643Error(
         `Permission error : ${await manager.getAddress()} is not a manager of ${await identity.getAddress()}`,
       );
     }
 
     if (await this.keyHasPurpose(identity, key, purpose)) {
       const keyAddress = await EthersT.resolveAddress(key);
-      throw new Error(`Key ${keyAddress} is already a ${this.keyPurposeToString(purpose)} key`);
+      throw new FheERC3643Error(`Key ${keyAddress} is already a ${this.keyPurposeToString(purpose)} key`);
     }
 
     await txWait(identity.connect(manager).addKey(hash, purpose, type), options);
 
     const ok = await this.keyHasPurpose(identity, key, purpose);
     if (!ok) {
-      throw new Error(`Identity addKey has not completed.`);
+      throw new FheERC3643Error(`Identity addKey has not completed.`);
     }
   }
 
@@ -141,28 +142,38 @@ export class IdentityAPI {
    */
   static async addClaim(
     identity: Identity,
-    topic: EthersT.BigNumberish,
-    scheme: EthersT.BigNumberish,
-    issuer: ClaimIssuer,
-    signature: EthersT.BytesLike,
-    data: EthersT.BytesLike,
+    signedClaim: SignedClaim,
     uri: string,
     manager: EthersT.Signer,
     options?: TxOptions,
   ) {
     if (!(await this.isManager(identity, manager))) {
-      throw new Error(
+      throw new FheERC3643Error(
         `Permission error : ${await manager.getAddress()} is not a manager of ${await identity.getAddress()}`,
       );
     }
 
-    await txWait(identity.connect(manager).addClaim(topic, scheme, issuer, signature, data, uri), options);
+    await txWait(
+      identity
+        .connect(manager)
+        .addClaim(
+          signedClaim.topic,
+          signedClaim.scheme,
+          signedClaim.issuer,
+          signedClaim.signature,
+          signedClaim.data,
+          uri,
+        ),
+      options,
+    );
 
-    const claimId = await this.toClaimId(issuer, topic);
+    const claimId = await this.toClaimId(signedClaim.issuer, signedClaim.topic);
 
     const _claim = await identity.connect(manager).getClaim(claimId);
-    if (_claim[2] !== (await issuer.getAddress())) {
-      throw new Error(`Claim ${claimId} has not been properly added to identity ${await identity.getAddress()}`);
+    if (_claim[2] !== (await signedClaim.issuer.getAddress())) {
+      throw new FheERC3643Error(
+        `Claim ${claimId} has not been properly added to identity ${await identity.getAddress()}`,
+      );
     }
 
     return claimId;
@@ -211,7 +222,7 @@ export class IdentityAPI {
     }
 
     if (res[2] !== (await issuer.getAddress())) {
-      throw new Error(`Internal error, unexpected claim issuer`);
+      throw new FheERC3643Error(`Internal error, unexpected claim issuer`);
     }
 
     return true;
@@ -228,7 +239,7 @@ export class IdentityAPI {
     options?: TxOptions,
   ) {
     if (!(await this.isManager(identity, manager))) {
-      throw new Error(
+      throw new FheERC3643Error(
         `Permission error : ${await manager.getAddress()} is not a manager of ${await identity.getAddress()}`,
       );
     }
@@ -244,7 +255,9 @@ export class IdentityAPI {
 
     const _claim = await identity.connect(manager).getClaim(claimId);
     if (_claim[2] !== EthersT.ZeroAddress) {
-      throw new Error(`Claim id ${claimId} has not been removed from identity ${await identity.getAddress()}`);
+      throw new FheERC3643Error(
+        `Claim id ${claimId} has not been removed from identity ${await identity.getAddress()}`,
+      );
     }
 
     return claimId;
@@ -264,11 +277,11 @@ export class IdentityAPI {
     const hash = await this._toKey(key);
 
     if (hash === EthersT.ZeroHash) {
-      throw new Error('Invalid identity key');
+      throw new FheERC3643Error('Invalid identity key');
     }
 
     if (!(await this.isManager(identity, manager))) {
-      throw new Error(
+      throw new FheERC3643Error(
         `Permission error : ${await manager.getAddress()} is not a manager of ${await identity.getAddress()}`,
       );
     }
@@ -281,7 +294,7 @@ export class IdentityAPI {
 
     const ok = await this.keyHasPurpose(identity, key, purpose);
     if (ok) {
-      throw new Error(`Identity removeKey has not completed.`);
+      throw new FheERC3643Error(`Identity removeKey has not completed.`);
     }
   }
 

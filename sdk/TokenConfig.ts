@@ -7,7 +7,6 @@ import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { IdentityRegistryAPI } from './IdentityRegistryAPI';
 import { ITREXFactory } from '../types';
-import { loadWalletFromIndexOrAliasOrAddressOrPrivateKey } from '../tasks/utils';
 
 export interface TREXTokenUserConfig {
   salt: string;
@@ -284,7 +283,7 @@ export class TokenConfig {
 
     try {
       if (typeof value === 'number' || typeof value === 'string') {
-        return loadWalletFromIndexOrAliasOrAddressOrPrivateKey(chainConfig, value).address;
+        return chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(value);
       }
     } catch (e) {}
 
@@ -378,6 +377,8 @@ export class TokenConfig {
     const newIssuers: Record<string, { topics: Array<string> }> = {};
     const issuers: Array<string> = [];
     for (let i = 0; i < keys.length; ++i) {
+      // claimIssuers
+
       const a = this._validateAddress(keys[i], false, `${name}["${keys[i]}"]`, chainConfig);
       if (a === EthersT.ZeroAddress) {
         continue;

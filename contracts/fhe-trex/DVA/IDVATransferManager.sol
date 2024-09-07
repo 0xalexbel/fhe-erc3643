@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.24;
 
+import {euint64, einput} from "fhevm/lib/TFHE.sol";
 import {AgentRole} from "../roles/AgentRole.sol";
 import {IToken} from "../token/IToken.sol";
 
@@ -24,7 +25,8 @@ interface IDVATransferManager {
         address tokenAddress;
         address sender;
         address recipient;
-        uint256 amount;
+        euint64 eamount;
+        euint64 eactualAmount;
         TransferStatus status;
         Approver[] approvers;
         bytes32 approvalCriteriaHash;
@@ -77,7 +79,8 @@ interface IDVATransferManager {
         address tokenAddress,
         address sender,
         address recipient,
-        uint256 amount,
+        euint64 eamount,
+        euint64 eactualAmount,
         bytes32 approvalCriteriaHash
     );
 
@@ -118,7 +121,8 @@ interface IDVATransferManager {
         address tokenAddress,
         address sender,
         address recipient,
-        uint256 amount
+        euint64 eamount,
+        euint64 eactualAmount
     );
 
     /**
@@ -173,13 +177,19 @@ interface IDVATransferManager {
      *  @dev initiates a new transfer
      *  @param tokenAddress is the address of the token
      *  @param recipient is the address of the recipient
-     *  @param amount is the transfer amount
+     *  @param encryptedAmount is the transfer amount
      *  Approval criteria must be preset for the given token address
      *  Sender must give DvA an allowance of at least the specified amount
      *  Receiver must be verified for the given token address
      *  emits a `TransferInitiated` event
+     *  @param inputProof ZkProof
      */
-    function initiateTransfer(address tokenAddress, address recipient, uint256 amount) external;
+    function initiateTransfer(
+        address tokenAddress,
+        address recipient,
+        einput encryptedAmount,
+        bytes calldata inputProof
+    ) external;
 
     /**
      *  @dev approves a transfer
@@ -263,6 +273,6 @@ interface IDVATransferManager {
         uint256 _nonce,
         address _sender,
         address _recipient,
-        uint256 _amount
+        euint64 _amount
     ) external pure returns (bytes32);
 }

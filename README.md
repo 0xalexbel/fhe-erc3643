@@ -2,18 +2,21 @@
 
 ## The actors
 
-- admin (wallet 0): owner of the TREX factory
-- 🏫 foo-university : a claim issuer
-- 🏛️ bar-government : a claim issuer
-- 🏦 super-bank : the token owner
-- 👨‍🚀 token-agent : the token manager
-- 👩 alice : token holder #1
-- 👱🏼‍♂️ bob : token holder #2
-- 👱🏼‍♂️ charlie : token holder #3
-- 👱🏼‍♂️ david : token holder #4
-- 👩 eve : token holder #5
+| Name  | Wallet index  | Wallet aliases  | Role  | Note  |
+|---|---|---|---|---|
+| 🚀 admin  |  0  | admin  |  owner of the TREXFactory |   |
+|  🏫 foo-university  |  1 | foo-university  | claim issuer  | stored in the token's Identity registry  |
+|  🏛️ bar-government  |  2 | bar-government  | claim issuer  | stored in the token's Identity registry  |
+|  🏦 super-bank  |  3 | super-bank  |token owner  |   |
+|  👨‍🚀 token-agent  |  4 | token-agent  | token agent  |   |
+|  👩 alice  |  5 | alice  | token holder  | has an identity stored in the token's Identity registry |
+|  👱🏼‍♂️ bob  |  6 | bob  | token holder  | has an identity stored in the token's Identity registry |
+|  👱🏼‍♂️ charlie  |  7 | charlie  | token holder  | has an identity stored in the token's Identity registry |
+|  👱🏼‍♂️ david  |  8 | david  | token holder  | has an identity stored in the token's Identity registry |
+|  👩 eve  |  9 | eve  | token holder  | has an identity stored in the token's Identity registry |
+|  🦈 MEGALODON  |  _ | _  | TREX token  | the deployed TREX token |
 
-## Step 1: `admin` creates a new TREX factory
+## Step 1: `🚀 admin` creates a new TREX factory
 
 ```bash
 # the '--wallet' option can be a wallet index, a wallet name, a wallet address or a private key
@@ -34,7 +37,7 @@ npx hardhat --network fhevm issuer new --wallet foo-university
 npx hardhat --network fhevm issuer new --wallet bar-government
 ```
 
-## Step 3: `🏦 super-bank` creates a new TREX Token named 'MEGALODON'
+## Step 3: `🏦 super-bank` creates a new TREX Token named `🦈 MEGALODON`
 
 The many parameters of the new token are taken from a config file, here : "./megalodon.token.json"
 ```bash
@@ -110,7 +113,8 @@ npx hardhat --network fhevm token add-identity --token 0x47DA632524c03ED15D293e3
 # Create a new ConditionalTransferModule module (0x0B306BF915C4d645ff596e518fAf3F9669b97016)
 npx hardhat --network fhevm module new --name 'ConditionalTransferModule' --wallet admin
 
-# super-bank is the token owner
+# 🏦 super-bank is the 'token owner' (must be ModularCompliance owner to add a module)
+# in this configuration the token owner is also the owner of the ModularCompliance contract.
 npx hardhat --network fhevm module add --module 0x0B306BF915C4d645ff596e518fAf3F9669b97016 --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --wallet super-bank
 ```
 

@@ -256,10 +256,15 @@ interface IToken is IFHEERC20 {
      *  IMPORTANT : THIS TRANSACTION COULD EXCEED GAS LIMIT IF `_toList.length` IS TOO HIGH,
      *  USE WITH CARE OR YOU COULD LOSE TX FEES WITH AN "OUT OF GAS" TRANSACTION
      *  @param _toList The addresses of the receivers
-     *  @param _amounts The number of tokens to transfer to the corresponding receiver
+     *  @param _eamounts The number of tokens to transfer to the corresponding receiver
      *  emits _toList.length `Transfer` events
      */
-    function batchTransfer(address[] calldata _toList, euint64[] calldata _amounts) external;
+    function batchTransfer(address[] calldata _toList, euint64[] calldata _eamounts) external;
+    function batchTransfer(
+        address[] calldata _toList,
+        einput[] calldata encryptedAmounts,
+        bytes calldata inputProof
+    ) external;
 
     /**
      *  @dev function allowing to issue forced transfers in batch
@@ -278,6 +283,12 @@ interface IToken is IFHEERC20 {
         address[] calldata _fromList,
         address[] calldata _toList,
         euint64[] calldata _eamounts
+    ) external;
+    function batchForcedTransfer(
+        address[] calldata _fromList,
+        address[] calldata _toList,
+        einput[] calldata encryptedAmounts,
+        bytes calldata inputProof
     ) external;
 
     /**
@@ -308,6 +319,11 @@ interface IToken is IFHEERC20 {
      *  emits _userAddresses.length `Transfer` events
      */
     function batchBurn(address[] calldata _userAddresses, euint64[] calldata _eamounts) external;
+    function batchBurn(
+        address[] calldata _toList,
+        einput[] calldata encryptedAmounts,
+        bytes calldata inputProof
+    ) external;
 
     /**
      *  @dev function allowing to set frozen addresses in batch

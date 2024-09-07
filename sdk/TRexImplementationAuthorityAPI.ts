@@ -25,6 +25,8 @@ import { isDeployed, txWait } from './utils';
 import { IdentityImplementationAuthorityAPI } from './IdentityImplementationAuthorityAPI';
 import { TREXFactoryAPI } from './TREXFactory';
 import { IdFactoryAPI } from './IdFactoryAPI';
+import { ChainConfig } from './ChainConfig';
+import { FheERC3643Error } from './errors';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +134,7 @@ export class TREXImplementationAuthorityAPI {
     const authority = TREXImplementationAuthority__factory.connect(address, owner);
 
     if ((await authority.owner()) !== (await owner.getAddress())) {
-      throw new Error('signer is not the owner of TREXImplementationAuthority.owner');
+      throw new FheERC3643Error('signer is not the owner of TREXImplementationAuthority.owner');
     }
 
     return authority;
@@ -181,42 +183,42 @@ export class TREXImplementationAuthorityAPI {
     if (!tokenImplementation) {
       tokenImplementation = await _deployNewToken(deployer, options);
       if (!tokenImplementation) {
-        throw new Error('Deploy ModularCompliance failed.');
+        throw new FheERC3643Error('Deploy ModularCompliance failed.');
       }
     }
 
     if (!ctrImplementation) {
       ctrImplementation = await _deployNewClaimTopicsRegistry(deployer, options);
       if (!ctrImplementation) {
-        throw new Error('Deploy ModularCompliance failed.');
+        throw new FheERC3643Error('Deploy ModularCompliance failed.');
       }
     }
 
     if (!irImplementation) {
       irImplementation = await _deployNewIdentityRegistry(deployer, options);
       if (!irImplementation) {
-        throw new Error('Deploy ModularCompliance failed.');
+        throw new FheERC3643Error('Deploy ModularCompliance failed.');
       }
     }
 
     if (!irsImplementation) {
       irsImplementation = await _deployNewIdentityRegistryStorage(deployer, options);
       if (!irsImplementation) {
-        throw new Error('Deploy ModularCompliance failed.');
+        throw new FheERC3643Error('Deploy ModularCompliance failed.');
       }
     }
 
     if (!tirImplementation) {
       tirImplementation = await _deployNewTrustedIssuersRegistry(deployer, options);
       if (!tirImplementation) {
-        throw new Error('Deploy ModularCompliance failed.');
+        throw new FheERC3643Error('Deploy ModularCompliance failed.');
       }
     }
 
     if (!mcImplementation) {
       mcImplementation = await _deployNewModularCompliance(deployer, options);
       if (!mcImplementation) {
-        throw new Error('Deploy ModularCompliance failed.');
+        throw new FheERC3643Error('Deploy ModularCompliance failed.');
       }
     }
 
@@ -242,6 +244,7 @@ export class TREXImplementationAuthorityAPI {
     authority: TREXImplementationAuthority | undefined,
     idFactory: IdFactory | undefined,
     deployer: EthersT.Signer,
+    chainConfig: ChainConfig,
     options?: TxOptions,
   ) {
     if (!authority) {
@@ -249,7 +252,7 @@ export class TREXImplementationAuthorityAPI {
     }
 
     if (!idFactory) {
-      const o = await IdentityImplementationAuthorityAPI.deployNewIdFactory(deployer, options);
+      const o = await IdentityImplementationAuthorityAPI.deployNewIdFactory(deployer, chainConfig, options);
       idFactory = o.idFactory;
     }
 
@@ -261,22 +264,21 @@ export class TREXImplementationAuthorityAPI {
     // Link new TREX Factory to identity factory
     await txWait(idFactory.connect(deployer).addTokenFactory(TRexFactory), options);
 
-    if (options) {
-      const TRexFactoryAddress = await TRexFactory.getAddress();
-
-      if (options.progress) {
-        options.progress.contractDeployed('TREXFactory', TRexFactoryAddress);
-      }
-
-      if (options.chainConfig) {
-        await options.chainConfig.saveTREXFactory(TRexFactoryAddress);
-      }
+    const TRexFactoryAddress = await TRexFactory.getAddress();
+    if (options?.progress) {
+      options.progress.contractDeployed('TREXFactory', TRexFactoryAddress);
     }
+    await chainConfig.saveTREXFactory(TRexFactoryAddress);
 
     return TRexFactory;
   }
 
-  static async loadOrDeployTREXConfig(config: TREXConfig, owner: EthersT.Signer, options?: TxOptions) {
+  static async loadOrDeployTREXConfig(
+    config: TREXConfig,
+    owner: EthersT.Signer,
+    chainConfig: ChainConfig,
+    options?: TxOptions,
+  ) {
     let idFactory: IdFactory;
     let authority: TREXImplementationAuthority;
     let factory: TREXFactory;
@@ -291,7 +293,7 @@ export class TREXImplementationAuthorityAPI {
       const _authority = await factory.getImplementationAuthority();
 
       if (config.authority && config.authority !== _authority) {
-        throw new Error('Incompatible TREX Implementation Anthority');
+        throw new FheERC3643Error('Incompatible TREX Implementation Anthority');
       }
 
       authority = await TREXImplementationAuthorityAPI.fromWithOwner(_authority, owner);
@@ -299,18 +301,29 @@ export class TREXImplementationAuthorityAPI {
       const _idFactory = await factory.getIdFactory();
 
       if (config.idFactory && config.idFactory !== _idFactory) {
-        throw new Error('Incompatible TREX Identity Factory');
+        throw new FheERC3643Error('Incompatible TREX Identity Factory');
       }
 
       idFactory = (await IdFactoryAPI.fromWithOwner(_idFactory, owner)).idFactory;
 
       factory = await TREXFactoryAPI.fromWithOwner(config.factory, owner);
     } else {
-      idFactory = await IdentityImplementationAuthorityAPI.loadOrDeployIdFactory(config.idFactory, owner, options);
+      idFactory = await IdentityImplementationAuthorityAPI.loadOrDeployIdFactory(
+        config.idFactory,
+        owner,
+        chainConfig,
+        options,
+      );
 
       authority = await this.loadOrDeployNewMain(config.authority, owner, options);
 
-      factory = await TREXImplementationAuthorityAPI.deployNewTRexFactory(authority, idFactory, owner, options);
+      factory = await TREXImplementationAuthorityAPI.deployNewTRexFactory(
+        authority,
+        idFactory,
+        owner,
+        chainConfig,
+        options,
+      );
     }
 
     return {

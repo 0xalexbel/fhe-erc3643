@@ -30,11 +30,11 @@ export class ModuleAPI {
   /**
    * Permissions: public.
    */
-  static async deployNew(moduleContractName: string, implementationOwner: EthersT.Signer, options?: TxOptions) {
+  static async deployNew(moduleContractName: string, moduleImplementationOwner: EthersT.Signer, options?: TxOptions) {
     const artifact = await importModuleArtifactFromName(moduleContractName);
 
     const factory = new EthersT.ContractFactory(artifact.abi, artifact.bytecode);
-    const moduleImplementaton = await factory.connect(implementationOwner).deploy();
+    const moduleImplementaton = await factory.connect(moduleImplementationOwner).deploy();
     await moduleImplementaton.waitForDeployment();
     const moduleImplementatonAddress = await moduleImplementaton.getAddress();
 
@@ -47,7 +47,7 @@ export class ModuleAPI {
     const dataArg = moduleImplementaton.interface.encodeFunctionData('initialize');
 
     const proxyFactory = new ModuleProxy__factory();
-    const proxy = await proxyFactory.connect(implementationOwner).deploy(moduleImplementaton, dataArg);
+    const proxy = await proxyFactory.connect(moduleImplementationOwner).deploy(moduleImplementaton, dataArg);
     await proxy.waitForDeployment();
 
     const proxyAddress = await proxy.getAddress();
@@ -58,12 +58,12 @@ export class ModuleAPI {
       }
     }
 
-    return IModule__factory.connect(proxyAddress, implementationOwner);
+    return IModule__factory.connect(proxyAddress, moduleImplementationOwner);
   }
 
-  static async deployNewConditionalTransferModule(implementationOwner: EthersT.Signer, options?: TxOptions) {
-    const imodule = await this.deployNew('ConditionalTransferModule', implementationOwner, options);
+  static async deployNewConditionalTransferModule(moduleImplementationOwner: EthersT.Signer, options?: TxOptions) {
+    const imodule = await this.deployNew('ConditionalTransferModule', moduleImplementationOwner, options);
     const addr = await imodule.getAddress();
-    return ConditionalTransferModule__factory.connect(addr, implementationOwner);
+    return ConditionalTransferModule__factory.connect(addr, moduleImplementationOwner);
   }
 }

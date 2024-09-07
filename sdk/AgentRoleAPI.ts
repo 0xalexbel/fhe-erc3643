@@ -60,13 +60,26 @@ export class AgentRoleAPI {
   static async searchAgentsInAgentRole(agentRole: EthersT.AddressLike, chainConfig: ChainConfig) {
     const agentRoleAddress = await EthersT.resolveAddress(agentRole);
     const agentRoleContract = AgentRole__factory.connect(agentRoleAddress).connect(chainConfig.provider);
-    const res: Array<{ address: string; index: number | undefined }> = [];
+    const res: Array<{ address: string; index: number | undefined; names: string[] }> = [];
     for (let i = 0; i < 10; ++i) {
       const address = chainConfig.getWalletAt(i, null).address;
       if (await agentRoleContract.isAgent(address)) {
-        res.push({ address, index: i });
+        res.push({ address, index: i, names: chainConfig.getWalletNamesAt(i) });
       }
     }
     return res;
+  }
+
+  static async searchOwnerInAgentRole(agentRole: EthersT.AddressLike, chainConfig: ChainConfig) {
+    const agentRoleAddress = await EthersT.resolveAddress(agentRole);
+    const agentRoleContract = AgentRole__factory.connect(agentRoleAddress).connect(chainConfig.provider);
+    const ownerAddress = await agentRoleContract.owner();
+    for (let i = 0; i < 10; ++i) {
+      const address = chainConfig.getWalletAt(i, null).address;
+      if (address == ownerAddress) {
+        return { address, index: i, names: chainConfig.getWalletNamesAt(i) };
+      }
+    }
+    return undefined;
   }
 }

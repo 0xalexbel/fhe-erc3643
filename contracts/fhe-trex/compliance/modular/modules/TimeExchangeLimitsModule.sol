@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.24;
 
-import {TFHE, ebool, euint64} from "fhevm/lib/TFHE.sol";
+import {TFHE, ebool, euint64, einput} from "fhevm/lib/TFHE.sol";
 import {IModularCompliance} from "../IModularCompliance.sol";
 import {IToken} from "../../../token/IToken.sol";
 import {AgentRole} from "../../../roles/AgentRole.sol";
@@ -10,13 +10,18 @@ import {AbstractModuleUpgradeable} from "./AbstractModuleUpgradeable.sol";
 contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
     /// Struct of transfer Counters
     struct ExchangeTransferCounter {
-        uint256 value;
+        euint64 value;
         uint256 timer;
     }
 
     struct Limit {
         uint32 limitTime;
-        uint256 limitValue;
+        euint64 limitValue;
+    }
+
+    struct InputLimit {
+        uint32 limitTime;
+        einput limitValue;
     }
 
     struct IndexLimit {
@@ -45,7 +50,7 @@ contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
      *  _limitValue is the new limit value for the given limit time
      *  _limitTime is the period of time of the limit
      */
-    event ExchangeLimitUpdated(address indexed compliance, address _exchangeID, uint256 _limitValue, uint32 _limitTime);
+    event ExchangeLimitUpdated(address indexed compliance, address _exchangeID, euint64 _limitValue, uint32 _limitTime);
 
     /**
      *  this event is emitted whenever an ONCHAINID is tagged as an exchange ID.
@@ -75,6 +80,18 @@ contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
         __AbstractModule_init();
     }
 
+    function setExchangeLimit(
+        address _exchangeID,
+        uint32 _limitTime,
+        einput _limitValue,
+        bytes calldata inputProof
+    ) public onlyComplianceCall {
+        Limit memory l;
+        l.limitTime = _limitTime;
+        l.limitValue = TFHE.asEuint64(_limitValue, inputProof);
+        setExchangeLimit(_exchangeID, l);
+    }
+
     /**
      *  @dev Sets the limit of tokens allowed to be transferred to the given exchangeID in a given period of time
      *  @param _exchangeID ONCHAINID of the exchange
@@ -82,7 +99,14 @@ contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
      *  Only the Compliance smart contract can call this function
      *  emits an `ExchangeLimitUpdated` event
      */
-    function setExchangeLimit(address _exchangeID, Limit memory _limit) external onlyComplianceCall {
+    function setExchangeLimit(address _exchangeID, Limit memory _limit) public onlyComplianceCall {
+        require(
+            TFHE.isSenderAllowed(_limit.limitValue),
+            "TFHE: TimeExchangeLimitsModule caller does not have TFHE permissions to access limit argument"
+        );
+        TFHE.allow(_limit.limitValue, address(this));
+        TFHE.allow(_limit.limitValue, msg.sender); // compliance
+
         bool limitIsAttributed = _limitValues[msg.sender][_exchangeID][_limit.limitTime].attributedLimit;
         uint8 limitCount = uint8(_exchangeLimits[msg.sender][_exchangeID].length);
         if (!limitIsAttributed && limitCount >= 4) {
@@ -135,15 +159,18 @@ contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
     /**
      *  @dev See {IModule-moduleTransferAction}.
      */
-    function moduleTransferAction(address _from, address _to, euint64 _value) external override onlyComplianceCall {
-        revert("TODO");
+    function moduleTransferAction(address _from, address _to, euint64 _evalue) external override onlyComplianceCall {
+        require(
+            TFHE.isAllowed(_evalue, address(this)),
+            "TFHE: TimeExchangeLimitsModule does not have TFHE permissions to access value argument"
+        );
 
-        // address senderIdentity = _getIdentity(msg.sender, _from);
-        // address receiverIdentity = _getIdentity(msg.sender, _to);
+        address senderIdentity = _getIdentity(msg.sender, _from);
+        address receiverIdentity = _getIdentity(msg.sender, _to);
 
-        // if (isExchangeID(receiverIdentity) && !_isTokenAgent(msg.sender, _from)) {
-        //     _increaseExchangeCounters(msg.sender, receiverIdentity, senderIdentity, _value);
-        // }
+        if (isExchangeID(receiverIdentity) && !_isTokenAgent(msg.sender, _from)) {
+            _increaseExchangeCounters(msg.sender, receiverIdentity, senderIdentity, _evalue);
+        }
     }
 
     /**
@@ -162,22 +189,35 @@ contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
      *  @dev See {IModule-moduleCheck}.
      */
     function moduleCheck(
-        address /*_from*/,
-        address /*_to*/,
-        euint64 /*_value*/,
-        address /*_compliance*/
+        address _from,
+        address _to,
+        euint64 _evalue,
+        address _compliance
     ) external override returns (ebool) {
-        // if (_from == address(0) || _isTokenAgent(_compliance, _from)) {
-        //     return true;
-        // }
-        // address senderIdentity = _getIdentity(_compliance, _from);
-        // if (isExchangeID(senderIdentity)) {
-        //     return true;
-        // }
-        // address receiverIdentity = _getIdentity(_compliance, _to);
-        // if (!isExchangeID(receiverIdentity)) {
-        //     return true;
-        // }
+        require(
+            TFHE.isAllowed(_evalue, address(this)),
+            "TFHE: TimeExchangeLimitsModule does not have TFHE permissions to access value argument"
+        );
+
+        ebool eTrue = TFHE.asEbool(true);
+        TFHE.allowTransient(eTrue, msg.sender);
+
+        if (_from == address(0) || _isTokenAgent(_compliance, _from)) {
+            return eTrue;
+        }
+
+        address senderIdentity = _getIdentity(_compliance, _from);
+
+        // senderIdentity = bobID
+        if (isExchangeID(senderIdentity)) {
+            return eTrue;
+        }
+
+        address receiverIdentity = _getIdentity(_compliance, _to);
+        if (!isExchangeID(receiverIdentity)) {
+            return eTrue;
+        }
+
         // for (uint256 i = 0; i < _exchangeLimits[_compliance][receiverIdentity].length; i++) {
         //     if (_value > _exchangeLimits[_compliance][receiverIdentity][i].limitValue) {
         //         return false;
@@ -192,9 +232,66 @@ contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
         //     }
         // }
         // return true;
-        ebool eTrue = TFHE.asEbool(true);
-        TFHE.allowTransient(eTrue, msg.sender);
-        return eTrue;
+
+        ebool res = TFHE.asEbool(true);
+
+        for (uint256 i = 0; i < _exchangeLimits[_compliance][receiverIdentity].length; i++) {
+            uint32 limitTime = _exchangeLimits[_compliance][receiverIdentity][i].limitTime;
+
+            euint64 receiverLimitValue = _exchangeLimits[_compliance][receiverIdentity][i].limitValue;
+            euint64 senderLimitValue = _exchangeCounters[_compliance][receiverIdentity][senderIdentity][limitTime]
+                .value;
+
+            if (euint64.unwrap(receiverLimitValue) != 0 && !TFHE.isAllowed(receiverLimitValue, address(this))) {
+                revert(
+                    "TFHE: TimeExchangeLimitsModule does not have TFHE permissions to access receiver stored limit value"
+                );
+            }
+            if (euint64.unwrap(senderLimitValue) != 0 && !TFHE.isAllowed(senderLimitValue, address(this))) {
+                revert("TFHE: TimeExchangeLimitsModule does not have TFHE permissions to access sender stored value");
+            }
+
+            // Condition 1:
+            // ------------
+            // 1. if (_value > _exchangeLimits[_compliance][receiverIdentity][i].limitValue) {
+            //    return false;
+            //  }
+            //
+            // notB1 = !(_value > _exchangeLimits[_compliance][receiverIdentity][i].limitValue)
+            ebool notB1 = TFHE.le(_evalue, receiverLimitValue);
+            res = TFHE.and(res, notB1);
+
+            // Condition 2:
+            // ------------
+            // if (
+            //     !_isExchangeCounterFinished(_compliance, receiverIdentity, senderIdentity, limitTime) &&
+            //     _exchangeCounters[_compliance][receiverIdentity][senderIdentity][limitTime].value + _value >
+            //     _exchangeLimits[_compliance][receiverIdentity][i].limitValue
+            // ) {
+            //     return false;
+            // }
+            //
+            // notB2 = notA || notB
+            // notA = _isExchangeCounterFinished(_compliance, receiverIdentity, senderIdentity, limitTime)
+            // notB = (_exchangeCounters[_compliance][receiverIdentity][senderIdentity][limitTime].value + _value <= _exchangeLimits[_compliance][receiverIdentity][i].limitValue)
+
+            // _isExchangeCounterFinished(_compliance, receiverIdentity, senderIdentity, limitTime)
+            ebool notA = TFHE.asEbool(
+                _isExchangeCounterFinished(_compliance, receiverIdentity, senderIdentity, limitTime)
+            );
+
+            // !(_exchangeCounters[_compliance][receiverIdentity][senderIdentity][limitTime].value + _value > _exchangeLimits[_compliance][receiverIdentity][i].limitValue)
+            euint64 a = TFHE.add(senderLimitValue, _evalue);
+            ebool notB = TFHE.le(a, receiverLimitValue);
+
+            // notB2 = notA || notB
+            ebool notB2 = TFHE.or(notA, notB);
+
+            res = TFHE.and(res, notB2);
+        }
+
+        TFHE.allowTransient(res, msg.sender);
+        return res;
     }
 
     /**
@@ -268,12 +365,32 @@ contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
         address compliance,
         address _exchangeID,
         address _investorID,
-        uint256 _value
+        euint64 _value
     ) internal {
+        require(
+            TFHE.isAllowed(_value, address(this)),
+            "TFHE: TimeExchangeLimitsModule does not have TFHE permissions to access value argument"
+        );
+
         for (uint256 i = 0; i < _exchangeLimits[compliance][_exchangeID].length; i++) {
             uint32 limitTime = _exchangeLimits[compliance][_exchangeID][i].limitTime;
             _resetExchangeLimitCooldown(compliance, _exchangeID, _investorID, limitTime);
-            _exchangeCounters[compliance][_exchangeID][_investorID][limitTime].value += _value;
+
+            euint64 v = _exchangeCounters[compliance][_exchangeID][_investorID][limitTime].value;
+
+            if (euint64.unwrap(v) == 0) {
+                v = TFHE.asEuint64(0);
+            }
+
+            if (!TFHE.isAllowed(v, address(this))) {
+                revert("TFHE: TimeExchangeLimitsModule does not have TFHE permissions to access to stored limit value");
+            }
+
+            euint64 newV = TFHE.add(v, _value);
+
+            TFHE.allow(newV, address(this));
+
+            _exchangeCounters[compliance][_exchangeID][_investorID][limitTime].value = newV;
         }
     }
 
@@ -297,7 +414,9 @@ contract TimeExchangeLimitsModule is AbstractModuleUpgradeable {
             ];
 
             counter.timer = block.timestamp + _limitTime;
-            counter.value = 0;
+            counter.value = TFHE.asEuint64(0);
+
+            TFHE.allow(counter.value, address(this));
         }
     }
 

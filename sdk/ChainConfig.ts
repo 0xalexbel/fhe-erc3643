@@ -2,6 +2,9 @@ import { ethers as EthersT } from 'ethers';
 import fs from 'fs';
 import fsPromises from 'fs/promises';
 import { getContractOwner } from './utils';
+import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
+import { FheERC3643Error, FheERC3643InternalError } from '../sdk/errors';
+import { logError } from './log';
 
 export type ChainConfigJSON = {
   chain: {
@@ -16,6 +19,18 @@ export type ChainConfigJSON = {
   claimIssuers: string[];
 };
 
+export type CryptEngineConfig = {
+  decrypt64: ((handle: bigint) => Promise<bigint>) | undefined;
+  encrypt64: (
+    contract: EthersT.AddressLike,
+    user: EthersT.AddressLike,
+    value: number | bigint,
+  ) => Promise<{
+    handles: Uint8Array[];
+    inputProof: Uint8Array;
+  }>;
+};
+
 export type ChainNetworkConfig = {
   url: string;
   chainId: number;
@@ -24,14 +39,30 @@ export type ChainNetworkConfig = {
     mnemonic: string;
     path: string;
   };
+  cryptEngine: CryptEngineConfig | undefined;
+  hardhatProvider: HardhatEthersProvider | undefined;
 };
 
+export const WALLETS: Array<{ index: number; names: string[] }> = [
+  { index: 0, names: ['admin'] },
+  { index: 1, names: ['foo-university', 'claim-issuer-1'] },
+  { index: 2, names: ['bar-government', 'claim-issuer-2'] },
+  { index: 3, names: ['super-bank', 'token-owner'] },
+  { index: 4, names: ['token-agent'] },
+  { index: 5, names: ['alice'] },
+  { index: 6, names: ['bob'] },
+  { index: 7, names: ['charlie'] },
+  { index: 8, names: ['david'] },
+  { index: 9, names: ['eve'] },
+];
+
 export class ChainConfig {
-  private _filePath: string | undefined;
+  private _historyPath: string | undefined;
   private _chainId: number;
   private _network: string;
   private _url: string;
-  private _jsonRpcProvider: EthersT.JsonRpcProvider;
+  private _hardhatProvider: HardhatEthersProvider | undefined;
+  private _jsonRpcProvider: EthersT.JsonRpcProvider | undefined;
   private _mnemonicPhrase: string;
   private _walletPath: string;
   private _mnemonic: EthersT.Mnemonic;
@@ -41,8 +72,9 @@ export class ChainConfig {
   private _identities: Array<string>;
   private _tokens: Array<string>;
   private _claimIssuers: Array<string>;
+  private _cryptEngine: CryptEngineConfig | undefined;
 
-  constructor(config?: ChainNetworkConfig, path?: string) {
+  constructor(config: ChainNetworkConfig | undefined, path: string | undefined) {
     const url = config?.url ?? 'http://localhost:8545';
     const chainId = config?.chainId ?? 9000;
     const name = config?.name ?? 'fhevm';
@@ -51,7 +83,8 @@ export class ChainConfig {
 
     this._chainId = chainId;
     this._network = name;
-    this._jsonRpcProvider = new EthersT.JsonRpcProvider(url, { chainId, name });
+    this._hardhatProvider = config?.hardhatProvider;
+    this._jsonRpcProvider = config?.hardhatProvider ? undefined : new EthersT.JsonRpcProvider(url, { chainId, name });
     this._mnemonicPhrase = mnemonic;
     this._walletPath = walletPath;
     this._mnemonic = EthersT.Mnemonic.fromPhrase(this._mnemonicPhrase);
@@ -61,15 +94,27 @@ export class ChainConfig {
     this._identities = [];
     this._claimIssuers = [];
     this._tokens = [];
-    this._filePath = path;
+    this._historyPath = path;
     this._url = url;
+    this._cryptEngine = config?.cryptEngine;
   }
 
-  public static async load(config: ChainNetworkConfig | undefined, historyPath: string): Promise<ChainConfig> {
+  public get historyPath() {
+    return this._historyPath;
+  }
+
+  public get networkName() {
+    return this._network;
+  }
+
+  public static async load(
+    config: ChainNetworkConfig | undefined,
+    historyPath: string | undefined,
+  ): Promise<ChainConfig> {
     const c = new ChainConfig(config, historyPath);
 
-    if (c._filePath && fs.existsSync(c._filePath)) {
-      const h = (await this._readDeployHistoryFile(c._filePath)) as ChainConfigJSON;
+    if (c._historyPath && fs.existsSync(c._historyPath)) {
+      const h = (await this._readDeployHistoryFile(c._historyPath)) as ChainConfigJSON;
       if (h?.chain.id === c._chainId && h?.chain.name === c._network) {
         if (h.idFactories) {
           c._idFactories = [...h.idFactories];
@@ -93,11 +138,21 @@ export class ChainConfig {
   }
 
   public get provider() {
-    return this._jsonRpcProvider;
+    if (this._jsonRpcProvider) {
+      return this._jsonRpcProvider;
+    }
+    if (this._hardhatProvider) {
+      return this._hardhatProvider;
+    }
+    throw new FheERC3643InternalError(`No provider`);
   }
 
   public get mnemonic() {
     return this._mnemonic;
+  }
+
+  public get url() {
+    return this._url;
   }
 
   public async getAccounts() {
@@ -110,81 +165,150 @@ export class ChainConfig {
     const hex = await this.provider.send('eth_getBalance', [account, 'latest']);
     return EthersT.getBigInt(hex);
   }
+  public getWalletIndexFromName(name: string): number | undefined {
+    for (let i = 0; i < WALLETS.length; ++i) {
+      if (WALLETS[i].names.includes(name)) {
+        return WALLETS[i].index;
+      }
+    }
+    return undefined;
+  }
 
-  public getWalletAt(index: number, provider: EthersT.Provider | null): EthersT.HDNodeWallet {
+  public getWalletNamesAt(index: number): Array<string> {
+    if (index < 0 || index > WALLETS.length) {
+      return [];
+    }
+    try {
+      return WALLETS[index].names;
+    } catch {
+      return [];
+    }
+  }
+
+  public getAllWalletsAddress(provider?: EthersT.Provider | null | undefined): string[] {
+    return WALLETS.map(v => this.getWalletAt(v.index).address);
+  }
+
+  public getWalletAt(index: number, provider?: EthersT.Provider | null | undefined): EthersT.HDNodeWallet {
+    if (provider === undefined) {
+      return this._rootWallet.deriveChild(index).connect(this.provider);
+    }
     return this._rootWallet.deriveChild(index).connect(provider);
   }
 
-  public getWalletFromName(name: string, provider: EthersT.Provider | null): EthersT.HDNodeWallet {
-    let index: number;
-    switch (name) {
-      case 'admin':
-        index = 0;
-        break;
-      case 'foo-university':
-      case 'claim-issuer-1':
-        index = 1;
-        break;
-      case 'bar-government':
-      case 'claim-issuer-2':
-        index = 2;
-        break;
-      case 'super-bank':
-      case 'token-owner':
-        index = 3;
-        break;
-      case 'token-agent':
-        index = 4;
-        break;
-      case 'alice':
-        index = 5;
-        break;
-      case 'bob':
-        index = 6;
-        break;
-      case 'charlie':
-        index = 7;
-        break;
-      case 'david':
-        index = 8;
-        break;
-      case 'eve':
-        index = 9;
-        break;
-      default:
-        throw new Error(`Unknown wallet name ${name}`);
+  public getWalletFromName(name: string, provider?: EthersT.Provider | null | undefined): EthersT.HDNodeWallet {
+    let index: number | undefined = this.getWalletIndexFromName(name);
+    if (index === undefined) {
+      throw new FheERC3643Error(`Unknown wallet name ${name}`);
     }
-    return this._rootWallet.deriveChild(index).connect(provider);
+    return this.getWalletAt(index, provider);
   }
 
   public async getOwnerWallet(address: string): Promise<EthersT.HDNodeWallet> {
     const owner = await getContractOwner(address, this.provider);
     if (!owner) {
-      throw new Error(`Unable to determine owner of contract: ${address}`);
+      throw new FheERC3643Error(`Unable to determine owner of contract: ${address}`);
     }
     return this.getWalletFromAddress(owner, this.provider);
   }
 
-  public getWalletFromAddress(address: string, provider: EthersT.Provider | null): EthersT.HDNodeWallet {
+  public getWalletFromAddress(address: string, provider?: EthersT.Provider | null | undefined): EthersT.HDNodeWallet {
     for (let i = 0; i < 10; ++i) {
       const w = this.getWalletAt(i, provider);
       if (address === w.address) {
         return w;
       }
     }
-    throw new Error(`Unable to retreive wallet from address ${address}`);
+    throw new FheERC3643Error(`Unable to retreive wallet from address ${address}`);
   }
 
-  public getWallets(): EthersT.HDNodeWallet[] {
+  public getWalletIndexFromAddress(
+    address: string,
+    provider?: EthersT.Provider | null | undefined,
+  ): number | undefined {
+    for (let i = 0; i < 10; ++i) {
+      const w = this.getWalletAt(i, provider);
+      if (address === w.address) {
+        return i;
+      }
+    }
+    return undefined;
+  }
+
+  public getWalletNamesFromAddress(address: string, provider?: EthersT.Provider | null | undefined): string[] {
+    const index = this.getWalletIndexFromAddress(address, provider);
+    if (index === undefined) {
+      return [];
+    }
+    return this.getWalletNamesAt(index);
+  }
+
+  public toWalletStringFromAddress(address: string, provider?: EthersT.Provider | null | undefined): string {
+    const index = this.getWalletIndexFromAddress(address, provider);
+    if (index === undefined) {
+      return address;
+    }
+    return '[' + this.getWalletNamesAt(index).join(',') + ']';
+  }
+
+  public getWallets(provider?: EthersT.Provider | null | undefined): EthersT.HDNodeWallet[] {
     const wallets = [];
     for (let i = 0; i < 10; ++i) {
-      wallets.push(this.getWalletAt(i, this.provider));
+      wallets.push(this.getWalletAt(i, provider));
     }
     return wallets;
   }
 
-  public walletFromPrivateKey(key: string | EthersT.SigningKey): EthersT.Wallet {
-    return new EthersT.Wallet(key, this.provider);
+  public walletFromPrivateKey(
+    key: string | EthersT.SigningKey,
+    provider?: EthersT.Provider | null | undefined,
+  ): EthersT.Wallet {
+    return new EthersT.Wallet(key, provider === undefined ? this.provider : provider);
+  }
+
+  public loadWalletFromIndexOrAliasOrAddressOrPrivateKey(
+    wallet: number | string,
+    provider?: EthersT.Provider | null | undefined,
+  ) {
+    if (typeof wallet === 'number') {
+      return this.getWalletAt(wallet, provider);
+    }
+
+    if (!EthersT.isHexString(wallet)) {
+      const index = Number.parseInt(wallet, 10);
+      if (Number.isNaN(index)) {
+        return this.getWalletFromName(wallet, provider);
+      }
+      return this.getWalletAt(index, provider);
+    }
+
+    if (EthersT.isAddress(wallet)) {
+      return this.getWalletFromAddress(EthersT.getAddress(wallet), provider);
+    }
+    try {
+      return this.walletFromPrivateKey(wallet);
+    } catch (e) {
+      throw new Error('Missing wallet arguments. Expecting private key or wallet index or wallet address');
+    }
+  }
+
+  public loadAddressFromWalletIndexOrAliasOrAddress(
+    wallet: string | number,
+    provider?: EthersT.Provider | null | undefined,
+  ): string {
+    if (typeof wallet === 'number') {
+      return this.getWalletAt(wallet, provider).address;
+    }
+
+    try {
+      return EthersT.getAddress(wallet);
+    } catch (e) {
+      const index = Number.parseInt(wallet, 10);
+      if (Number.isNaN(index)) {
+        return this.getWalletFromName(wallet, provider).address;
+      }
+      return this.getWalletAt(index, provider).address;
+    }
   }
 
   public async saveIdFactory(idFactory: string) {
@@ -243,11 +367,11 @@ export class ChainConfig {
   }
 
   public async save() {
-    if (!this._filePath) {
+    if (!this._historyPath) {
       return;
     }
 
-    await this._writeDeployHistoryFile(this._filePath);
+    await this._writeDeployHistoryFile(this._historyPath);
   }
 
   private async _writeDeployHistoryFile(path: string) {
@@ -256,7 +380,7 @@ export class ChainConfig {
       const s = JSON.stringify(json, null, 2);
       await fsPromises.writeFile(path, s, { encoding: 'utf8' });
     } catch (e) {
-      console.log(`Save deploy history failed (${path})`);
+      logError(`Save deploy history failed (${path})`);
     }
   }
 
@@ -266,5 +390,24 @@ export class ChainConfig {
       return JSON.parse(s);
     } catch (e) {}
     return undefined;
+  }
+
+  async decrypt64(handle: EthersT.BigNumberish | Uint8Array): Promise<bigint> {
+    if (!this._cryptEngine || !this._cryptEngine.decrypt64) {
+      throw new FheERC3643Error(`Chain config does not support FHEVM handle decryption`);
+    }
+    const bn = EthersT.toBigInt(handle);
+    if (bn === 0n) {
+      return 0n;
+    }
+    return await this._cryptEngine.decrypt64(bn);
+  }
+
+  async encrypt64(contract: EthersT.AddressLike, user: EthersT.AddressLike, value: number | bigint) {
+    if (!this._cryptEngine || !this._cryptEngine.encrypt64) {
+      throw new FheERC3643Error(`Chain config does not support FHEVM handle encryption`);
+    }
+
+    return this._cryptEngine.encrypt64(contract, user, value);
   }
 }

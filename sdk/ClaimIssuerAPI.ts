@@ -2,11 +2,20 @@ import { ethers as EthersT } from 'ethers';
 import { TxOptions } from './types';
 import { ClaimIssuer, ClaimIssuer__factory, Identity, ITREXFactory } from './artifacts';
 import { IdentityAPI } from './IdentityAPI';
+import { ChainConfig } from './ChainConfig';
 
 //////////////////////////////////////////////////////////////////////////////////
 
 // uint256
 export type ClaimTopic = string;
+export type SignedClaim = {
+  data: EthersT.BytesLike;
+  issuer: ClaimIssuer;
+  topic: EthersT.BigNumberish;
+  scheme: EthersT.BigNumberish;
+  identity: string;
+  signature: EthersT.BytesLike;
+};
 
 export function toClaimTopic(data: EthersT.BigNumberish): ClaimTopic {
   if (typeof data === 'string') {
@@ -82,12 +91,13 @@ export class ClaimIssuerAPI {
     identity: Identity,
     data: Uint8Array,
     topic: EthersT.BigNumberish,
+    scheme: EthersT.BigNumberish,
   ) {
-    const claim = {
+    const claim: SignedClaim = {
       data: EthersT.hexlify(data),
       issuer: issuer,
       topic,
-      scheme: 1,
+      scheme,
       identity: await identity.getAddress(),
       signature: '',
     };
@@ -126,6 +136,7 @@ export class ClaimIssuerAPI {
   static async deployNewClaimIssuer(
     initialManagementKey: EthersT.AddressLike,
     deployer: EthersT.Signer,
+    chainConfig: ChainConfig,
     options?: TxOptions,
   ) {
     const initialManagementKeyAddress = await EthersT.resolveAddress(initialManagementKey);
@@ -143,17 +154,13 @@ export class ClaimIssuerAPI {
       throw new Error(`key ${initialManagementKeyAddress} is not a Management key.`);
     }
 
-    if (options) {
-      const issuerAddress = await issuer.getAddress();
+    const issuerAddress = await issuer.getAddress();
 
-      if (options.progress) {
-        options.progress.contractDeployed('ClaimIssuer', issuerAddress);
-      }
-
-      if (options.chainConfig) {
-        await options.chainConfig.saveClaimIssuer(issuerAddress);
-      }
+    if (options?.progress) {
+      options.progress.contractDeployed('ClaimIssuer', issuerAddress);
     }
+
+    await chainConfig.saveClaimIssuer(issuerAddress);
 
     return issuer;
   }

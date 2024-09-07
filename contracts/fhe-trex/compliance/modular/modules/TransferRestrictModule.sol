@@ -107,19 +107,22 @@ contract TransferRestrictModule is AbstractModuleUpgradeable {
      *  @dev See {IModule-moduleCheck}.
      */
     function moduleCheck(
-        address /*_from*/,
-        address /*_to*/,
-        euint64 /*_value*/,
-        address /*_compliance*/
+        address _from,
+        address _to,
+        euint64 /* _value */,
+        address _compliance
     ) external override returns (ebool) {
-        // if (_allowedUserAddresses[_compliance][_from]) {
-        //     return true;
-        // }
+        bool ok = true;
+        if (_allowedUserAddresses[_compliance][_from]) {
+            ok = true;
+        } else {
+            ok = _allowedUserAddresses[_compliance][_to];
+        }
 
-        // return _allowedUserAddresses[_compliance][_to];
-        ebool eTrue = TFHE.asEbool(true);
-        TFHE.allowTransient(eTrue, msg.sender);
-        return eTrue;
+        ebool eOk = TFHE.asEbool(ok);
+        TFHE.allowTransient(eOk, msg.sender);
+
+        return eOk;
     }
 
     /**

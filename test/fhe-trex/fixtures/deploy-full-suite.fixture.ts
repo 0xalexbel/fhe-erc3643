@@ -8,6 +8,7 @@ import {
   IERC734,
   ImplementationAuthority,
   ModularCompliance,
+  ModularComplianceProxy,
   Token,
   TREXImplementationAuthority,
   TrustedIssuersRegistry,
@@ -569,13 +570,13 @@ export async function deployFullSuiteFixture() {
 export async function deploySuiteWithModularCompliancesFixture() {
   const context = await deployFullSuiteFixture();
 
-  const complianceProxy = await hre.ethers.deployContract('ModularComplianceProxy', [
+  const complianceProxy: ModularComplianceProxy = await hre.ethers.deployContract('ModularComplianceProxy', [
     context.authorities.trexImplementationAuthority,
   ]);
   await complianceProxy.waitForDeployment();
 
-  const compliance = await hre.ethers.getContractAt('ModularCompliance', complianceProxy);
-
+  const compliance: ModularCompliance = await hre.ethers.getContractAt('ModularCompliance', complianceProxy);
+  console.log(`compliance=${await compliance.getAddress()}`);
   const complianceBeta = await hre.ethers.deployContract('ModularCompliance');
   await complianceBeta.waitForDeployment();
 

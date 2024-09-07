@@ -8,6 +8,8 @@ import { TxOptions } from './types';
 import { txWait } from './utils';
 import { IdentityRegistryAPI } from './IdentityRegistryAPI';
 import { TREXImplementationAuthorityAPI } from './TRexImplementationAuthorityAPI';
+import { FheERC3643Error } from './errors';
+import { ChainConfig } from './ChainConfig';
 
 export class TREXFactoryAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): TREXFactory {
@@ -29,7 +31,7 @@ export class TREXFactoryAPI {
     const factoryOwnerAddress = await factory.owner();
     const ownerAddress = await owner.getAddress();
     if (factoryOwnerAddress !== ownerAddress) {
-      throw new Error(
+      throw new FheERC3643Error(
         `owner ${ownerAddress} is not the owner of TREXFactory ${address}, the actual owner is ${factoryOwnerAddress}`,
       );
     }
@@ -43,13 +45,13 @@ export class TREXFactoryAPI {
 
     const { major, minor, patch } = await authority.getCurrentVersion();
     if (major !== 4n || minor !== 0n || patch !== 0n) {
-      throw new Error('Unexpected TREX version number');
+      throw new FheERC3643Error('Unexpected TREX version number');
     }
 
     const idFactory = IdFactoryAPI.from(await factory.getIdFactory(), owner);
     const isTokenFactory = await idFactory.isTokenFactory(factory);
     if (!isTokenFactory) {
-      throw new Error('TREXFactory is not linked to its identity factory');
+      throw new FheERC3643Error('TREXFactory is not linked to its identity factory');
     }
 
     return factory;
@@ -88,7 +90,7 @@ export class TREXFactoryAPI {
     const actualOwnerAddress = await token.owner();
     const expectedOwnerAddress = await tokenOwner.getAddress();
     if (actualOwnerAddress !== expectedOwnerAddress) {
-      throw new Error(
+      throw new FheERC3643Error(
         `${expectedOwnerAddress} is not the token owner, the actual token owner is ${actualOwnerAddress}`,
       );
     }
@@ -106,6 +108,7 @@ export class TREXFactoryAPI {
     claimDetails: ClaimDetails,
     irAgent: EthersT.AddressLike,
     deployer: EthersT.Signer,
+    chainConfig: ChainConfig,
     options?: TxOptions,
   ) {
     let tokenDetails: ITREXFactory.TokenDetailsStruct = {
@@ -127,6 +130,7 @@ export class TREXFactoryAPI {
       tokenDetails,
       claimDetails.toTREXClaimDetailsStruct(),
       deployer,
+      chainConfig,
       options,
     );
 
@@ -142,19 +146,23 @@ export class TREXFactoryAPI {
     tokenDetails: ITREXFactory.TokenDetailsStruct,
     claimDetails: ITREXFactory.ClaimDetailsStruct,
     factoryOwner: EthersT.Signer,
+    chainConfig: ChainConfig,
     options?: TxOptions,
   ) {
     const existingToken = await TREXFactoryAPI.tokenFromSalt(factory, salt, factoryOwner);
     if (existingToken) {
-      throw new Error(`Token with salt '${salt}' already exists in TREX factory ${await factory.getAddress()}`);
+      throw new FheERC3643Error(
+        `Token with salt '${salt}' already exists in TREX factory ${await factory.getAddress()}`,
+      );
     }
 
     const txReceipt = await txWait(
       factory.connect(factoryOwner).deployTREXSuite(salt, tokenDetails, claimDetails),
       options,
     );
+
     if (!txReceipt) {
-      throw new Error('Deploy TREXSuite failed!');
+      throw new FheERC3643Error('Deploy TREXSuite failed!');
     }
 
     if (options?.progress) {
@@ -163,7 +171,7 @@ export class TREXFactoryAPI {
 
     const log = txReceipt.logs.find(log => 'eventName' in log && log.eventName === 'TREXSuiteDeployed');
     if (!log) {
-      throw new Error('Deploy TREXSuite failed!');
+      throw new FheERC3643Error('Deploy TREXSuite failed!');
     }
     assert(log);
     assert('args' in log);
@@ -177,9 +185,7 @@ export class TREXFactoryAPI {
     //   string indexed _salt
     const tokenAddress = log.args[0];
 
-    if (options?.chainConfig) {
-      await options.chainConfig.saveToken(tokenAddress);
-    }
+    await chainConfig.saveToken(tokenAddress);
 
     return {
       token: tokenAddress,
@@ -218,27 +224,27 @@ export class TREXFactoryAPI {
 
     const actualTokenOwnerAddress = await token.owner();
     if (fromOwnerAddress !== actualTokenOwnerAddress && toOwnerAddress !== actualTokenOwnerAddress) {
-      throw new Error(`${fromOwnerAddress} is not the Token owner`);
+      throw new FheERC3643Error(`${fromOwnerAddress} is not the Token owner`);
     }
 
     const actualIROwnerAddress = await ir.owner();
     if (fromOwnerAddress !== actualIROwnerAddress && toOwnerAddress !== actualIROwnerAddress) {
-      throw new Error(`${fromOwnerAddress} is not the Identity Registry owner`);
+      throw new FheERC3643Error(`${fromOwnerAddress} is not the Identity Registry owner`);
     }
 
     const actualTIROwnerAddress = await tir.owner();
     if (fromOwnerAddress !== actualTIROwnerAddress && toOwnerAddress !== actualTIROwnerAddress) {
-      throw new Error(`${fromOwnerAddress} is not the Trusted Issuers Registry owner`);
+      throw new FheERC3643Error(`${fromOwnerAddress} is not the Trusted Issuers Registry owner`);
     }
 
     const actualCTROwnerAddress = await ctr.owner();
     if (fromOwnerAddress !== actualCTROwnerAddress && toOwnerAddress !== actualCTROwnerAddress) {
-      throw new Error(`${fromOwnerAddress} is not the Claim Topics Registry owner`);
+      throw new FheERC3643Error(`${fromOwnerAddress} is not the Claim Topics Registry owner`);
     }
 
     const actualMCOwnerAddress = await mc.owner();
     if (fromOwnerAddress !== actualMCOwnerAddress && toOwnerAddress !== actualMCOwnerAddress) {
-      throw new Error(`${fromOwnerAddress} is not the Modular Compliance owner`);
+      throw new FheERC3643Error(`${fromOwnerAddress} is not the Modular Compliance owner`);
     }
 
     if (toOwnerAddress !== actualTokenOwnerAddress) {

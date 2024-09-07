@@ -13,6 +13,24 @@
       "runtimeArgs": ["hardhat", "--network", "fhevm", "identity", "setup", "--wallet-index", "0"]
     },
     {
+      "name": "fhevm token balance",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "type": "node",
+      "cwd": "${workspaceFolder}",
+      "runtimeArgs": [
+        "hardhat",
+        "--network",
+        "fhevm",
+        "token",
+        "balance",
+        "--token",
+        "0x47DA632524c03ED15D293e34256D28BD0d38c7a4",
+        "--user",
+        "alice"
+      ]
+    },
+    {
       "name": "hh test mint",
       "request": "launch",
       "runtimeExecutable": "npx",

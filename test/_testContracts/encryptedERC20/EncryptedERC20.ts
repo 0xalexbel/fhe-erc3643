@@ -123,7 +123,7 @@ describe('EncryptedERC20', function () {
     expect(balanceBob).to.equal(0);
   });
 
-  it('should be able to transferFrom only if allowance is sufficient', async function () {
+  it('HHHH should be able to transferFrom only if allowance is sufficient', async function () {
     const transaction = await erc20.mint(10000);
     await transaction.wait();
 

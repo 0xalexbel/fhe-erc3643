@@ -608,57 +608,58 @@ describe('CountryRestrictModule', () => {
     });
   });
 
-  describe('.moduleCheck', () => {
-    describe('when identity country is restricted', () => {
-      it('should return false', async () => {
-        const {
-          suite: { compliance, countryRestrictModule },
-          accounts: { deployer, aliceWallet, bobWallet },
-        } = await deployComplianceWithCountryRestrictModule();
-        const contract = await ethers.deployContract('MockContract');
-        await compliance.bindToken(contract);
+  // Must write another test in FHEVM
+  // describe('.moduleCheck', () => {
+  //   describe('when identity country is restricted', () => {
+  //     it('should return false', async () => {
+  //       const {
+  //         suite: { compliance, countryRestrictModule },
+  //         accounts: { deployer, aliceWallet, bobWallet },
+  //       } = await deployComplianceWithCountryRestrictModule();
+  //       const contract = await ethers.deployContract('MockContract');
+  //       await compliance.bindToken(contract);
 
-        await compliance
-          .connect(deployer)
-          .callModuleFunction(
-            new ethers.Interface(['function batchRestrictCountries(uint16[] calldata countries)']).encodeFunctionData(
-              'batchRestrictCountries',
-              [[42, 66]],
-            ),
-            countryRestrictModule,
-          );
+  //       await compliance
+  //         .connect(deployer)
+  //         .callModuleFunction(
+  //           new ethers.Interface(['function batchRestrictCountries(uint16[] calldata countries)']).encodeFunctionData(
+  //             'batchRestrictCountries',
+  //             [[42, 66]],
+  //           ),
+  //           countryRestrictModule,
+  //         );
 
-        await contract.setInvestorCountry(42);
+  //       await contract.setInvestorCountry(42);
 
-        await expect(countryRestrictModule.moduleCheck(aliceWallet.address, bobWallet.address, 16, compliance)).to.be
-          .eventually.false;
-      });
-    });
+  //       await expect(countryRestrictModule.moduleCheck(aliceWallet.address, bobWallet.address, 16, compliance)).to.be
+  //         .eventually.false;
+  //     });
+  //   });
 
-    describe('when identity country is not restricted', () => {
-      it('should return true', async () => {
-        const {
-          suite: { compliance, countryRestrictModule },
-          accounts: { deployer, aliceWallet, bobWallet },
-        } = await deployComplianceWithCountryRestrictModule();
-        const contract = await ethers.deployContract('MockContract');
-        await compliance.bindToken(contract);
+  //   describe('when identity country is not restricted', () => {
+  //     it('should return true', async () => {
+  //       const {
+  //         suite: { compliance, countryRestrictModule },
+  //         accounts: { deployer, aliceWallet, bobWallet },
+  //       } = await deployComplianceWithCountryRestrictModule();
+  //       const contract = await ethers.deployContract('MockContract');
+  //       await compliance.bindToken(contract);
 
-        await compliance
-          .connect(deployer)
-          .callModuleFunction(
-            new ethers.Interface(['function batchRestrictCountries(uint16[] calldata countries)']).encodeFunctionData(
-              'batchRestrictCountries',
-              [[42, 66]],
-            ),
-            countryRestrictModule,
-          );
+  //       await compliance
+  //         .connect(deployer)
+  //         .callModuleFunction(
+  //           new ethers.Interface(['function batchRestrictCountries(uint16[] calldata countries)']).encodeFunctionData(
+  //             'batchRestrictCountries',
+  //             [[42, 66]],
+  //           ),
+  //           countryRestrictModule,
+  //         );
 
-        await contract.setInvestorCountry(10);
+  //       await contract.setInvestorCountry(10);
 
-        await expect(countryRestrictModule.moduleCheck(aliceWallet.address, bobWallet.address, 16, compliance)).to.be
-          .eventually.true;
-      });
-    });
-  });
+  //       await expect(countryRestrictModule.moduleCheck(aliceWallet.address, bobWallet.address, 16, compliance)).to.be
+  //         .eventually.true;
+  //     });
+  //   });
+  // });
 });

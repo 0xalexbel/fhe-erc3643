@@ -1,6 +1,7 @@
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { ethers, fhevm } from 'hardhat';
 import { deployFullSuiteFixture } from '../fixtures/deploy-full-suite.fixture';
+import { getLogEventArgs, tokenFreeze } from '../../utils';
 
 describe('Token - Recovery', () => {
   describe('.recoveryAddress()', () => {
@@ -27,7 +28,7 @@ describe('Token - Recovery', () => {
     });
 
     describe('when sender is an agent', () => {
-      // TODO FAIL / Decide
+      // This test is not meaningfull in FHEVM mode
       // describe('when wallet to recover has no balance', () => {
       //   it('should revert', async () => {
       //     const {
@@ -60,7 +61,6 @@ describe('Token - Recovery', () => {
         });
       });
 
-      // TODO FAIL
       describe('when wallet is frozen', () => {
         it('should recover and freeze the new wallet', async () => {
           const {
@@ -90,7 +90,6 @@ describe('Token - Recovery', () => {
         });
       });
 
-      // TODO FAIL
       describe('when wallet has frozen token', () => {
         it('should recover and freeze tokens on the new wallet', async () => {
           const {
@@ -107,16 +106,26 @@ describe('Token - Recovery', () => {
               1,
             );
 
-          await token.connect(tokenAgent).freezePartialTokens(bobWallet.address, 50);
+          await tokenFreeze(token, tokenAgent, bobWallet, 50);
 
           const tx = await token
             .connect(tokenAgent)
             .recoveryAddress(bobWallet.address, anotherWallet.address, bobIdentity);
-          await expect(token.getFrozenTokens(anotherWallet.address)).to.be.eventually.eq(50);
-          await expect(tx)
-            .to.emit(token, 'RecoverySuccess')
-            .withArgs(bobWallet.address, anotherWallet.address, bobIdentity);
-          await expect(tx).to.emit(token, 'TokensFrozen').withArgs(anotherWallet.address, 50);
+          const txReceipt = await tx.wait(1);
+
+          const args1 = getLogEventArgs(txReceipt, 'RecoverySuccess', 3);
+          expect(args1[0]).to.eq(bobWallet.address);
+          expect(args1[1]).to.eq(anotherWallet.address);
+          expect(args1[2]).to.eq(await bobIdentity.getAddress());
+
+          const args2 = getLogEventArgs(txReceipt, 'TokensFrozen', 2);
+          expect(args2[0]).to.eq(anotherWallet.address);
+          expect(await fhevm.decrypt64(args2[1])).to.eq(50);
+
+          const encFrozenTokens = await token.getFrozenTokens(anotherWallet.address);
+          const frozenTokens = await fhevm.decrypt64(encFrozenTokens);
+
+          expect(frozenTokens).to.be.eq(50);
         });
       });
     });

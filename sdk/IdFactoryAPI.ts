@@ -3,6 +3,8 @@ import { IdFactory, IdFactory__factory, ImplementationAuthority, ImplementationA
 import { TxOptions } from './types';
 import { IdentityImplementationAuthorityAPI } from './IdentityImplementationAuthorityAPI';
 import { isDeployed } from './utils';
+import { FheERC3643Error, FheERC3643InternalError } from './errors';
+import { ChainConfig } from './ChainConfig';
 
 export class IdFactoryAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): IdFactory {
@@ -13,15 +15,15 @@ export class IdFactoryAPI {
     return contract;
   }
 
-  static fromSafe(address: string, runner: EthersT.ContractRunner): IdFactory {
+  static async fromSafe(address: string, runner: EthersT.ContractRunner): Promise<IdFactory> {
     if (!runner.provider) {
-      throw new Error('ContractRunner has no provider');
+      throw new FheERC3643InternalError('ContractRunner has no provider');
     }
 
     const contract = IdFactory__factory.connect(address);
 
-    if (!isDeployed(runner.provider, address)) {
-      throw new Error(`IdFactory ${address} is not deployed`);
+    if (!(await isDeployed(runner.provider, address))) {
+      throw new FheERC3643Error(`IdFactory ${address} is not deployed`);
     }
 
     return contract.connect(runner);
@@ -32,6 +34,7 @@ export class IdFactoryAPI {
     idFactory: IdFactory,
     initialManagementKey: EthersT.AddressLike,
     deployer: EthersT.Signer,
+    chainConfig: ChainConfig,
     options?: TxOptions,
   ) {
     const implementationAuthorityAddress = await idFactory.connect(deployer).implementationAuthority();
@@ -40,6 +43,7 @@ export class IdFactoryAPI {
       implementationAuthority,
       initialManagementKey,
       deployer,
+      chainConfig,
       options,
     );
   }
@@ -53,11 +57,11 @@ export class IdFactoryAPI {
     );
 
     if ((await idFactory.owner()) !== (await owner.getAddress())) {
-      throw new Error('signer is not the owner of idFactory.owner');
+      throw new FheERC3643Error('signer is not the owner of idFactory.owner');
     }
 
     if ((await implementationAuthority.owner()) !== (await owner.getAddress())) {
-      throw new Error('signer is not the owner of idFactory.implementationAuthority.owner');
+      throw new FheERC3643Error('signer is not the owner of idFactory.implementationAuthority.owner');
     }
 
     return {

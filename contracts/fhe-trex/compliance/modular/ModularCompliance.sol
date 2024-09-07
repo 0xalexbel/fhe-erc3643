@@ -102,12 +102,17 @@ contract ModularCompliance is IModularCompliance, OwnableUpgradeable, MCStorage 
      */
     function transferred(address _from, address _to, euint64 _evalue) public override onlyToken {
         require(_from != address(0) && _to != address(0), "invalid argument - zero address");
-        require(TFHE.isSenderAllowed(_evalue));
+        require(
+            TFHE.isSenderAllowed(_evalue) && TFHE.isAllowed(_evalue, address(this)),
+            "TFHE: compliance or sender does not have permissions to access value argument"
+        );
+
         // require(_value > 0, "invalid argument - no value transfer");
         ebool ehasValue = TFHE.gt(_evalue, TFHE.asEuint64(0));
         euint64 evalue = TFHE.select(ehasValue, _evalue, TFHE.asEuint64(0));
         uint256 length = _modules.length;
         for (uint256 i = 0; i < length; i++) {
+            TFHE.allowTransient(evalue, _modules[i]);
             IModule(_modules[i]).moduleTransferAction(_from, _to, evalue);
         }
     }
@@ -124,12 +129,13 @@ contract ModularCompliance is IModularCompliance, OwnableUpgradeable, MCStorage 
      */
     function created(address _to, euint64 _evalue) public override onlyToken {
         require(_to != address(0), "invalid argument - zero address");
-        require(TFHE.isSenderAllowed(_evalue));
+        require(TFHE.isSenderAllowed(_evalue) || TFHE.isAllowed(_evalue, address(this)));
         //require(_evalue > 0, "invalid argument - no value mint");
         ebool ehasValue = TFHE.gt(_evalue, TFHE.asEuint64(0));
         euint64 evalue = TFHE.select(ehasValue, _evalue, TFHE.asEuint64(0));
         uint256 length = _modules.length;
         for (uint256 i = 0; i < length; i++) {
+            TFHE.allowTransient(evalue, _modules[i]);
             IModule(_modules[i]).moduleMintAction(_to, evalue);
         }
     }
@@ -146,12 +152,13 @@ contract ModularCompliance is IModularCompliance, OwnableUpgradeable, MCStorage 
      */
     function destroyed(address _from, euint64 _evalue) public override onlyToken {
         require(_from != address(0), "invalid argument - zero address");
-        require(TFHE.isSenderAllowed(_evalue));
+        require(TFHE.isSenderAllowed(_evalue) || TFHE.isAllowed(_evalue, address(this)));
         //require(_evalue > 0, "invalid argument - no value burn");
         ebool ehasValue = TFHE.gt(_evalue, TFHE.asEuint64(0));
         euint64 evalue = TFHE.select(ehasValue, _evalue, TFHE.asEuint64(0));
         uint256 length = _modules.length;
         for (uint256 i = 0; i < length; i++) {
+            TFHE.allowTransient(evalue, _modules[i]);
             IModule(_modules[i]).moduleBurnAction(_from, evalue);
         }
     }
@@ -205,18 +212,39 @@ contract ModularCompliance is IModularCompliance, OwnableUpgradeable, MCStorage 
      *  @dev See {IModularCompliance-canTransfer}.
      */
     function canTransfer(address _from, address _to, euint64 _evalue) external override returns (ebool) {
+        require(
+            TFHE.isAllowed(_evalue, address(this)),
+            "TFHE: token does not have TFHE permissions to access value argument"
+        );
+
         uint256 length = _modules.length;
-        ebool ecanTransfer = TFHE.asEbool(true);
-        for (uint256 i = 0; i < length; i++) {
-            ebool echeck = IModule(_modules[i]).moduleCheck(_from, _to, _evalue, address(this));
-            ecanTransfer = TFHE.and(ecanTransfer, echeck);
-            // if (!IModule(_modules[i]).moduleCheck(_from, _to, _value, address(this))) {
-            //     return false;
-            // }
+
+        if (length == 0) {
+            ebool eTrue = TFHE.asEbool(true);
+            TFHE.allowTransient(eTrue, msg.sender);
+            return eTrue;
         }
-        //return true;
+
+        ebool ecanTransfer = TFHE.asEbool(true);
+        euint64 etotalSupply = IToken(_tokenBound).totalSupply();
+
+        require(
+            TFHE.isAllowed(etotalSupply, address(this)),
+            "TFHE: compliance does not have TFHE permissions to access token's totalSupply"
+        );
+
+        for (uint256 i = 0; i < length; i++) {
+            // give TFHE access to module
+            TFHE.allowTransient(_evalue, _modules[i]);
+            TFHE.allowTransient(etotalSupply, _modules[i]);
+
+            ebool echeck = IModule(_modules[i]).moduleCheck(_from, _to, _evalue, address(this));
+
+            ecanTransfer = TFHE.and(ecanTransfer, echeck);
+        }
 
         TFHE.allowTransient(ecanTransfer, msg.sender);
+
         return ecanTransfer;
     }
 

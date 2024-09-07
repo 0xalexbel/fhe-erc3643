@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 
 import {TFHE, euint64, einput, ebool} from "fhevm/lib/TFHE.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "hardhat/console.sol";
 
 contract EncryptedERC20 is Ownable2Step {
     event Transfer(address indexed from, address indexed to);
@@ -102,13 +103,16 @@ contract EncryptedERC20 is Ownable2Step {
         einput encryptedAmount,
         bytes calldata inputProof
     ) public virtual returns (bool) {
-        transferFrom(from, to, TFHE.asEuint64(encryptedAmount, inputProof));
+        euint64 aa = TFHE.asEuint64(encryptedAmount, inputProof);
+        transferFrom(from, to, aa);
         return true;
     }
 
     // Transfers `amount` tokens using the caller's allowance.
     function transferFrom(address from, address to, euint64 amount) public virtual returns (bool) {
         require(TFHE.isSenderAllowed(amount));
+        // require(TFHE.isSenderAllowed(_balances[from]), "sender does not haver permissions to access from's balance");
+        // require(TFHE.isSenderAllowed(_balances[to]), "sender does not haver permissions to access to's balance");
         address spender = msg.sender;
         ebool isTransferable = _updateAllowance(from, spender, amount);
         _transfer(from, to, amount, isTransferable);
@@ -127,6 +131,10 @@ contract EncryptedERC20 is Ownable2Step {
     }
 
     function _updateAllowance(address owner, address spender, euint64 amount) internal virtual returns (ebool) {
+        require(TFHE.isSenderAllowed(amount), "??? JE PIGE PAS");
+        console.log("Encryp.sol msg.sender=%s", msg.sender);
+        console.log("Encryp.sol address(this)=%s", address(this));
+        //require(TFHE.isSenderAllowed(_balances[owner]), "Is SPENDER");
         euint64 currentAllowance = _allowance(owner, spender);
         // makes sure the allowance suffices
         ebool allowedTransfer = TFHE.le(amount, currentAllowance);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.24;
 
+import {TFHE, euint64, einput, ebool} from "fhevm/lib/TFHE.sol";
 import {AgentRole} from "../roles/AgentRole.sol";
 import {IToken} from "../token/IToken.sol";
 import {IDVATransferManager} from "./IDVATransferManager.sol";
@@ -62,33 +63,68 @@ contract DVATransferManager is IDVATransferManager {
     /**
      *  @dev See {IDVATransferManager-initiateTransfer}
      */
-    function initiateTransfer(address tokenAddress, address recipient, uint256 amount) external {
-        revert("TODO");
-        // ApprovalCriteria memory approvalCriteria = _approvalCriteria[tokenAddress];
-        // if (approvalCriteria.hash == bytes32(0)) {
-        //     revert TokenIsNotRegistered(tokenAddress);
-        // }
+    function initiateTransfer(
+        address tokenAddress,
+        address recipient,
+        einput encryptedAmount,
+        bytes calldata inputProof
+    ) external {
+        // TFHE.allowedTransient(TFHE.asEuint64(encryptedAmount, inputProof), msg.sender) == true
+        _initiateTransfer(tokenAddress, recipient, TFHE.asEuint64(encryptedAmount, inputProof));
+    }
 
-        // IToken token = IToken(tokenAddress);
-        // if (!token.identityRegistry().isVerified(recipient)) {
-        //     revert RecipientIsNotVerified(tokenAddress, recipient);
-        // }
+    function _initiateTransfer(address tokenAddress, address recipient, euint64 eamount) private {
+        // Debug
+        require(
+            TFHE.isSenderAllowed(eamount),
+            "TFHE: DVATransferManager does not have TFHE permissions to access amount argument"
+        );
 
-        // token.transferFrom(msg.sender, address(this), amount);
+        ApprovalCriteria memory approvalCriteria = _approvalCriteria[tokenAddress];
+        if (approvalCriteria.hash == bytes32(0)) {
+            revert TokenIsNotRegistered(tokenAddress);
+        }
 
-        // uint256 nonce = _txNonce++;
-        // bytes32 transferID = calculateTransferID(nonce, msg.sender, recipient, amount);
+        IToken token = IToken(tokenAddress);
+        if (!token.identityRegistry().isVerified(recipient)) {
+            revert RecipientIsNotVerified(tokenAddress, recipient);
+        }
 
-        // Transfer storage transfer = _transfers[transferID];
-        // transfer.tokenAddress = tokenAddress;
-        // transfer.sender = msg.sender;
-        // transfer.recipient = recipient;
-        // transfer.amount = amount;
-        // transfer.status = TransferStatus.PENDING;
-        // transfer.approvalCriteriaHash = approvalCriteria.hash;
+        // Must calculate the actual transfer
+        euint64 balanceBefore = token.balanceOf(address(this));
 
-        // _addApproversToTransfer(transfer, approvalCriteria);
-        // emit TransferInitiated(transferID, tokenAddress, msg.sender, recipient, amount, approvalCriteria.hash);
+        // required by the transferFrom function
+        TFHE.allowTransient(eamount, address(this));
+        TFHE.allowTransient(eamount, address(token));
+        token.transferFrom(msg.sender, address(this), eamount);
+
+        euint64 balanceAfter = token.balanceOf(address(this));
+
+        euint64 eactualAmount = TFHE.sub(balanceAfter, balanceBefore);
+        TFHE.allow(eactualAmount, address(this));
+
+        uint256 nonce = _txNonce++;
+        bytes32 transferID = calculateTransferID(nonce, msg.sender, recipient, eamount);
+
+        Transfer storage transfer = _transfers[transferID];
+        transfer.tokenAddress = tokenAddress;
+        transfer.sender = msg.sender;
+        transfer.recipient = recipient;
+        transfer.eamount = eamount;
+        transfer.eactualAmount = eactualAmount;
+        transfer.status = TransferStatus.PENDING;
+        transfer.approvalCriteriaHash = approvalCriteria.hash;
+
+        _addApproversToTransfer(transfer, approvalCriteria);
+        emit TransferInitiated(
+            transferID,
+            tokenAddress,
+            msg.sender,
+            recipient,
+            eamount,
+            eactualAmount,
+            approvalCriteria.hash
+        );
     }
 
     /**
@@ -247,9 +283,9 @@ contract DVATransferManager is IDVATransferManager {
         uint256 _nonce,
         address _sender,
         address _recipient,
-        uint256 _amount
+        euint64 _eamount
     ) public pure returns (bytes32) {
-        bytes32 transferID = keccak256(abi.encode(_nonce, _sender, _recipient, _amount));
+        bytes32 transferID = keccak256(abi.encode(_nonce, _sender, _recipient, _eamount));
         return transferID;
     }
 
@@ -302,7 +338,14 @@ contract DVATransferManager is IDVATransferManager {
     function _completeTransfer(bytes32 transferID, Transfer storage transfer) internal {
         transfer.status = TransferStatus.COMPLETED;
         _transferTokensTo(transfer, transfer.recipient);
-        emit TransferCompleted(transferID, transfer.tokenAddress, transfer.sender, transfer.recipient, transfer.amount);
+        emit TransferCompleted(
+            transferID,
+            transfer.tokenAddress,
+            transfer.sender,
+            transfer.recipient,
+            transfer.eamount,
+            transfer.eactualAmount
+        );
     }
 
     function _approvalCriteriaChanged(bytes32 transferID, Transfer storage transfer) internal returns (bool) {
@@ -334,9 +377,13 @@ contract DVATransferManager is IDVATransferManager {
     }
 
     function _transferTokensTo(Transfer memory transfer, address to) internal {
-        revert("TODO");
-
-        //IToken(transfer.tokenAddress).transfer(to, transfer.amount);
+        // Debug: Only eactualAmount has to be checked!
+        require(
+            TFHE.isAllowed(transfer.eactualAmount, address(this)),
+            "TFHE: DVATransferManager token has not TFHE permissions to access stored actual amount"
+        );
+        TFHE.allowTransient(transfer.eactualAmount, transfer.tokenAddress);
+        IToken(transfer.tokenAddress).transfer(to, transfer.eactualAmount);
     }
 
     function _canApprove(

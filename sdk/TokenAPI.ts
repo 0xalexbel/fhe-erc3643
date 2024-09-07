@@ -1,11 +1,22 @@
 import { ethers as EthersT } from 'ethers';
-import { Identity, IdentityRegistry, IdentityRegistryStorage, Token, Token__factory } from './artifacts';
+import {
+  Identity,
+  IdentityRegistry,
+  IdentityRegistryStorage,
+  SupplyLimitModule,
+  SupplyLimitModule__factory,
+  Token,
+  Token__factory,
+} from './artifacts';
 import { TxOptions } from './types';
-import { txWait } from './utils';
+import { isDeployed, txWait, txWaitAndCatchError } from './utils';
 import { IdentityRegistryAPI } from './IdentityRegistryAPI';
 import { ClaimTopicsRegistryAPI } from './ClaimTopicsRegistryAPI';
 import { IdentityAPI } from './IdentityAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
+import { FheERC3643Error } from './errors';
+import { getLogEventArgs } from '../test/utils';
+import { ChainConfig } from './ChainConfig';
 
 export class TokenAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): Token {
@@ -14,6 +25,20 @@ export class TokenAPI {
       return contract.connect(runner);
     }
     return contract;
+  }
+
+  static async fromSafe(address: string, runner: EthersT.ContractRunner): Promise<Token> {
+    if (!runner.provider) {
+      throw new FheERC3643Error('ContractRunner has no provider');
+    }
+
+    const contract = Token__factory.connect(address);
+
+    if (!(await isDeployed(runner.provider, address))) {
+      throw new FheERC3643Error(`Token ${address} is not deployed`);
+    }
+
+    return contract.connect(runner);
   }
 
   /**
@@ -44,7 +69,7 @@ export class TokenAPI {
    * Permission: compliance owner
    */
   static async complianceWithOwner(token: Token, complianceOwner: EthersT.Signer) {
-    return ModularComplianceAPI.fromWithOwner(await token.compliance(), complianceOwner);
+    return ModularComplianceAPI.fromWithOwner(await token.connect(complianceOwner).compliance(), complianceOwner);
   }
 
   /**
@@ -59,7 +84,7 @@ export class TokenAPI {
     // user cannot be zero
     const userAddress = EthersT.resolveAddress(user);
     if (userAddress === EthersT.ZeroAddress) {
-      throw new Error(`Invalid user address ${userAddress}`);
+      throw new FheERC3643Error(`Invalid user address ${userAddress}`);
     }
 
     const irs = await this.identityRegistryStorage(token, runner);
@@ -101,16 +126,20 @@ export class TokenAPI {
     // user cannot be zero
     const userAddress = EthersT.resolveAddress(user);
     if (userAddress === EthersT.ZeroAddress) {
-      throw new Error(`Invalid user address ${userAddress}`);
+      throw new FheERC3643Error(`Invalid user address ${userAddress}`);
     }
 
     const existing = await this.identityFromUser(token, user, runner);
     if (existing?.identity) {
       if ((await existing.identity.getAddress()) !== (await identity.getAddress())) {
-        throw new Error(`user ${await userAddress} already stored in identity registry with a different identity`);
+        throw new FheERC3643Error(
+          `user ${await userAddress} already stored in identity registry with a different identity`,
+        );
       }
       if (existing.investorCountry !== country) {
-        throw new Error(`user ${await userAddress} already stored in identity registry with a different country code`);
+        throw new FheERC3643Error(
+          `user ${await userAddress} already stored in identity registry with a different country code`,
+        );
       }
       return true;
     }
@@ -118,6 +147,9 @@ export class TokenAPI {
     return false;
   }
 
+  /**
+   * Returns true if registered, false if already registered, throw error if failed.
+   */
   static async registerIdentity(
     token: Token,
     user: EthersT.AddressLike,
@@ -125,31 +157,32 @@ export class TokenAPI {
     country: bigint,
     agent: EthersT.Signer,
     options?: TxOptions,
-  ) {
+  ): Promise<boolean> {
     // user cannot be zero
     const userAddress = EthersT.resolveAddress(user);
     if (userAddress === EthersT.ZeroAddress) {
-      throw new Error(`Invalid user address ${userAddress}`);
+      throw new FheERC3643Error(`Invalid user address ${userAddress}`);
     }
 
     const existing = await this.identityFromUser(token, user, agent);
     if (existing?.identity) {
       if ((await existing.identity.getAddress()) !== (await identity.getAddress())) {
-        throw new Error(`user ${await userAddress} already stored in identity registry with a different identity`);
+        throw new FheERC3643Error(
+          `user ${await userAddress} already stored in identity registry with a different identity`,
+        );
       }
       if (existing.investorCountry !== country) {
-        throw new Error(`user ${await userAddress} already stored in identity registry with a different country code`);
+        throw new FheERC3643Error(
+          `user ${await userAddress} already stored in identity registry with a different country code`,
+        );
       }
-      console.log(
-        `Identity ${await identity.getAddress()} with country ${country} is already stored in the token identity registry`,
-      );
-      return;
+      return false;
     }
 
     // for debug purpose
     const ok = await IdentityAPI.isManagementKey(identity, user);
     if (!ok) {
-      throw new Error(`Strange!! user ${user} is not a management key of identity `);
+      throw new FheERC3643Error(`Strange!! user ${user} is not a management key of identity `);
     }
 
     // identity cannot be zero
@@ -158,7 +191,9 @@ export class TokenAPI {
     const ir = await this.identityRegistry(token, agent);
 
     if (!(await ir.isAgent(agent))) {
-      throw new Error(`${await agent.getAddress()} is not an agent of Identity Registry ${await ir.getAddress()}`);
+      throw new FheERC3643Error(
+        `${await agent.getAddress()} is not an agent of Identity Registry ${await ir.getAddress()}`,
+      );
     }
 
     //storedIdentity
@@ -169,7 +204,168 @@ export class TokenAPI {
 
     const storedIdentityAddress = await irs.storedIdentity(user);
     if (storedIdentityAddress === EthersT.ZeroAddress) {
-      throw new Error(`Register identity failed. Address is zero!`);
+      throw new FheERC3643Error(`Register identity failed. Address is zero!`);
     }
+
+    return true;
+  }
+
+  static async mint(
+    token: Token,
+    user: EthersT.AddressLike,
+    eamount: Uint8Array,
+    inputProof: Uint8Array,
+    agent: EthersT.Signer,
+    chainConfig: ChainConfig,
+    options?: TxOptions,
+  ) {
+    const userAddr = EthersT.resolveAddress(user);
+    const txPromise = token
+      .connect(agent)
+      ['mint(address,bytes32,bytes)'](userAddr, eamount, inputProof, { gasLimit: options?.gasLimit });
+
+    const txReceipt = await txWaitAndCatchError(txPromise);
+
+    const args = getLogEventArgs(txReceipt, 'Transfer', undefined, token);
+    console.log(args);
+    const bbbb = await chainConfig.decrypt64(args[2]);
+    console.log(bbbb);
+
+    return txReceipt;
+  }
+
+  static async burn(
+    token: Token,
+    user: EthersT.AddressLike,
+    eamount: Uint8Array,
+    inputProof: Uint8Array,
+    agent: EthersT.Signer,
+    options?: TxOptions,
+  ) {
+    const userAddr = EthersT.resolveAddress(user);
+    const txPromise = token
+      .connect(agent)
+      ['burn(address,bytes32,bytes)'](userAddr, eamount, inputProof, { gasLimit: options?.gasLimit });
+
+    const txReceipt = await txWaitAndCatchError(txPromise);
+    return txReceipt;
+  }
+
+  static async transfer(
+    token: Token,
+    to: EthersT.AddressLike,
+    eamount: Uint8Array,
+    inputProof: Uint8Array,
+    wallet: EthersT.Signer,
+    options?: TxOptions,
+  ) {
+    const toAddr = EthersT.resolveAddress(to);
+    const txPromise = token
+      .connect(wallet)
+      ['transfer(address,bytes32,bytes)'](toAddr, eamount, inputProof, { gasLimit: options?.gasLimit });
+
+    const txReceipt = await txWaitAndCatchError(txPromise);
+    return txReceipt;
+  }
+
+  static async freezePartialTokens(
+    token: Token,
+    user: EthersT.AddressLike,
+    eamount: Uint8Array,
+    inputProof: Uint8Array,
+    agent: EthersT.Signer,
+    options?: TxOptions,
+  ) {
+    const userAddr = EthersT.resolveAddress(user);
+    const txPromise = token
+      .connect(agent)
+      ['freezePartialTokens(address,bytes32,bytes)'](userAddr, eamount, inputProof, { gasLimit: options?.gasLimit });
+
+    const txReceipt = await txWaitAndCatchError(txPromise);
+    return txReceipt;
+  }
+
+  static async unfreezePartialTokens(
+    token: Token,
+    user: EthersT.AddressLike,
+    eamount: Uint8Array,
+    inputProof: Uint8Array,
+    agent: EthersT.Signer,
+    options?: TxOptions,
+  ) {
+    const userAddr = EthersT.resolveAddress(user);
+    const txPromise = token
+      .connect(agent)
+      ['unfreezePartialTokens(address,bytes32,bytes)'](userAddr, eamount, inputProof, { gasLimit: options?.gasLimit });
+
+    const txReceipt = await txWaitAndCatchError(txPromise);
+    return txReceipt;
+  }
+
+  static async balanceOf(token: Token, user: EthersT.AddressLike, runner: EthersT.ContractRunner, options?: TxOptions) {
+    const userAddr = EthersT.resolveAddress(user);
+    const encBalance = await token.connect(runner).balanceOf(userAddr);
+    return encBalance;
+  }
+
+  static async totalSupply(token: Token, runner: EthersT.ContractRunner, options?: TxOptions) {
+    const encTotalSupply = await token.connect(runner).totalSupply();
+    return encTotalSupply;
+  }
+
+  static async getFrozenTokens(
+    token: Token,
+    user: EthersT.AddressLike,
+    runner: EthersT.ContractRunner,
+    options?: TxOptions,
+  ) {
+    const userAddr = EthersT.resolveAddress(user);
+    const encFrozenTokens = await token.connect(runner).getFrozenTokens(userAddr);
+    return encFrozenTokens;
+  }
+
+  static async pause(token: Token, agent: EthersT.Signer, options?: TxOptions) {
+    const txPromise = token.connect(agent).pause({ gasLimit: options?.gasLimit });
+
+    const txReceipt = await txWaitAndCatchError(txPromise);
+    return txReceipt;
+  }
+
+  static async unpause(token: Token, agent: EthersT.Signer, options?: TxOptions) {
+    const txPromise = token.connect(agent).unpause({ gasLimit: options?.gasLimit });
+
+    const txReceipt = await txWaitAndCatchError(txPromise);
+    return txReceipt;
+  }
+
+  static async paused(token: Token, runner: EthersT.ContractRunner, options?: TxOptions) {
+    return await token.connect(runner).paused();
+  }
+
+  static async getSupplyLimitModules(token: Token, runner: EthersT.ContractRunner, options?: TxOptions) {
+    const compliance = ModularComplianceAPI.from(await token.compliance(), runner);
+    const modules = await ModularComplianceAPI.findModulesWithName(compliance, 'SupplyLimitModule', runner, options);
+    const m: Array<SupplyLimitModule> = [];
+    for (let i = 0; i < modules.length; ++i) {
+      m.push(SupplyLimitModule__factory.connect(await modules[i].getAddress(), runner));
+    }
+    return m;
+  }
+
+  static async setSupplyLimit(token: Token, options?: TxOptions) {
+    //ModularComplianceAPI;
+    //const m = await TokenAPI.getSupplyLimitModules(token, )
+    // const encAmount = await encrypt64(context.suite.complianceModule, context.suite.compliance, 100);
+    // console.log('compliance=' + (await context.suite.compliance.getAddress()));
+    // console.log('module=' + (await context.suite.complianceModule.getAddress()));
+    // // within setSupplyLimit running code msg.sender === context.suite.compliance
+    // const tx = await context.suite.compliance.callModuleFunction(
+    //   new EthersT.Interface(['function setSupplyLimit(bytes32,bytes)']).encodeFunctionData('setSupplyLimit', [
+    //     encAmount.handles[0],
+    //     encAmount.inputProof,
+    //   ]),
+    //   context.suite.complianceModule,
+    // );
+    // await tx.wait(1);
   }
 }

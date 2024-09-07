@@ -6,19 +6,26 @@
     "decimals": 0,
     "identityRegistryStorage": "0x0000000000000000000000000000000000000000",
     "identity": "0x0000000000000000000000000000000000000000",
-    "identityRegistryAgents": ["0x0000000000000000000000000000000000000000"],
-    "tokenAgents": ["0x0000000000000000000000000000000000000000"],
+    "identityRegistryAgents": [],
+    "tokenAgents": [],
     "complianceModules": [],
     "complianceSettings": []
   },
   "claims": {
-    "topics": ["10101010000042n", "10101000100006n"],
+    "topics": [
+      "10101010000042n",
+      "10101000100006n"
+    ],
     "issuers": {
-      "foo-university": {
-        "topics": ["10101010000042n"]
+      "0x8464135c8F25Da09e49BC8782676a84730C318bC": {
+        "topics": [
+          "10101010000042n"
+        ]
       },
-      "bar-government": {
-        "topics": ["10101010000042n"]
+      "0x663F3ad617193148711d28f5334eE4Ed07016602": {
+        "topics": [
+          "10101000100006n"
+        ]
       }
     }
   }

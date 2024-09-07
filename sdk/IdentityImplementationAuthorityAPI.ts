@@ -11,6 +11,7 @@ import {
 } from './artifacts';
 import { IdentityAPI } from './IdentityAPI';
 import { IdFactoryAPI } from './IdFactoryAPI';
+import { ChainConfig } from './ChainConfig';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +29,7 @@ export class IdentityImplementationAuthorityAPI {
     authority: ImplementationAuthority,
     initialManagementKey: EthersT.AddressLike,
     deployer: EthersT.Signer,
+    chainConfig: ChainConfig,
     options?: TxOptions,
   ) {
     const proxyFactory = new IdentityProxy__factory();
@@ -41,9 +43,7 @@ export class IdentityImplementationAuthorityAPI {
         options.progress.contractDeployed('IdentityProxy', identityAddress);
       }
 
-      if (options.chainConfig) {
-        await options.chainConfig.saveIdentity(identityAddress);
-      }
+      await chainConfig.saveIdentity(identityAddress);
     }
 
     const newIdentity = IdentityAPI.from(identityAddress, deployer);
@@ -51,15 +51,20 @@ export class IdentityImplementationAuthorityAPI {
     return newIdentity;
   }
 
-  static async loadOrDeployIdFactory(idFactory: string | null | undefined, owner: EthersT.Signer, options?: TxOptions) {
+  static async loadOrDeployIdFactory(
+    idFactory: string | null | undefined,
+    owner: EthersT.Signer,
+    chainConfig: ChainConfig,
+    options?: TxOptions,
+  ) {
     if (idFactory) {
       return (await IdFactoryAPI.fromWithOwner(idFactory, owner)).idFactory;
     } else {
-      return (await this.deployNewIdFactory(owner, options)).idFactory;
+      return (await this.deployNewIdFactory(owner, chainConfig, options)).idFactory;
     }
   }
 
-  static async deployNewIdFactory(deployer: EthersT.Signer, options?: TxOptions) {
+  static async deployNewIdFactory(deployer: EthersT.Signer, chainConfig: ChainConfig, options?: TxOptions) {
     const { implementationAuthority, identityImplementation } = await this.deployNewIdentityImplementationAuthority(
       deployer,
       options,
@@ -75,9 +80,7 @@ export class IdentityImplementationAuthorityAPI {
         options.progress.contractDeployed('IdFactory', idFactoryAddress);
       }
 
-      if (options.chainConfig) {
-        await options.chainConfig.saveIdFactory(idFactoryAddress);
-      }
+      await chainConfig.saveIdFactory(idFactoryAddress);
     }
 
     return {

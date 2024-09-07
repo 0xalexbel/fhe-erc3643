@@ -1,6 +1,7 @@
 import { ethers as EthersT } from 'ethers';
 import {
   ClaimTopicsRegistry,
+  Identity,
   IdentityRegistry,
   IdentityRegistry__factory,
   IdentityRegistryStorage,
@@ -9,6 +10,7 @@ import {
 import { IdentityRegistryStorageAPI } from './IdentityRegistryStorageAPI';
 import { ClaimTopicsRegistryAPI } from './ClaimTopicsRegistryAPI';
 import { TrustedIssuersRegistryAPI } from './TrustedIssuersRegistryAPI';
+import { IdentityAPI } from './IdentityAPI';
 
 export class IdentityRegistryAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): IdentityRegistry {
@@ -38,5 +40,17 @@ export class IdentityRegistryAPI {
     runner?: EthersT.ContractRunner | null,
   ): Promise<TrustedIssuersRegistry> {
     return TrustedIssuersRegistryAPI.from(await ir.issuersRegistry(), runner);
+  }
+
+  static async identity(
+    ir: IdentityRegistry,
+    user: EthersT.AddressLike,
+    runner?: EthersT.ContractRunner | null,
+  ): Promise<Identity | undefined> {
+    const addr = await ir.identity(user);
+    if (addr === EthersT.ZeroAddress) {
+      return undefined;
+    }
+    return IdentityAPI.from(addr, runner);
   }
 }

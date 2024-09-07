@@ -1,10 +1,10 @@
-import { ChainConfig } from './ChainConfig';
 import { Progress } from './utils';
 
 export interface TxOptions {
   confirms?: number;
   progress?: Progress;
-  chainConfig: ChainConfig;
+  gasLimit?: number;
+  mute?: boolean;
 }
 
 export interface TREXConfig {
