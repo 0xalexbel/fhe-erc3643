@@ -10,7 +10,6 @@ It is essentially a single Hardhat project with an integrated CLI (via the hardh
 - The vast majority of the TREX test suite has also been converted. Consequently, running the test suite on a real node is currently impracticable.
 - Due to the large amount of tests, it is not possible to run the full test suite in a single hardhat test command. The node.js runtime eventually will run out of memory.
 - The DVA contract is also fully converted as well as its entire test suite.
-- The vast majority of the coding effort relied on setting up an efficient development environment (FHE can be very tricky sometimes, and the fhevm + fhevmjs are still under development)
 
 # Install & Test
 
