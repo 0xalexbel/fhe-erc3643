@@ -20,7 +20,7 @@ import 'hardhat-ignore-warnings';
 import 'hardhat-fhevm';
 import { HardhatUserConfig } from 'hardhat/config';
 import './tasks';
-// Mnemonic = destroy enter release essence little zero narrow human system city eye hour matrix cook sunset enrich shallow focus float half bench detect gain sand
+
 const config: HardhatUserConfig = {
   solidity: {
     version: '0.8.24',

@@ -46,7 +46,33 @@ export function cmdTREXSetupTxOptions() {
   return defaultTxOptions(37 + 3);
 }
 
-export async function cmdTREXSetup(chainConfig: ChainConfig, mint: bigint, unpause: boolean, options?: TxOptions) {
+export type CmdTREXSetupOutput = {
+  tokenAddress: string;
+  trexFactoryAddress: string;
+  tokenOwner: {
+    walletName: string;
+    address: string;
+  };
+  tokenAgent: {
+    walletName: string;
+    address: string;
+  };
+  accounts: Record<
+    string,
+    {
+      walletName: string;
+      address: string;
+      identityAddress: string;
+    }
+  >;
+};
+
+export async function cmdTREXSetup(
+  chainConfig: ChainConfig,
+  mint: bigint,
+  unpause: boolean,
+  options?: TxOptions,
+): Promise<CmdTREXSetupOutput> {
   options = options ?? cmdTREXSetupTxOptions();
 
   if (options.progress) {
@@ -162,12 +188,20 @@ export async function cmdTREXSetup(chainConfig: ChainConfig, mint: bigint, unpau
     { wallet: 'eve', country: 3n },
   ];
 
+  const accounts: Record<string, { walletName: string; address: string; identityAddress: string }> = {};
+
   for (let i = 0; i < users.length; ++i) {
     const userWallet = chainConfig.getWalletFromName(users[i].wallet, chainConfig.provider);
 
     // Create new identity
     const identity = await cmdIdentityNew(users[i].wallet, trexFactoryAddress, 'trex', chainConfig, options);
     const identityAddress = await identity.getAddress();
+
+    accounts[users[i].wallet] = {
+      walletName: users[i].wallet,
+      address: userWallet.address,
+      identityAddress: identityAddress,
+    };
 
     // register identity to token
     await cmdTokenAddIdentity(
@@ -245,6 +279,16 @@ export async function cmdTREXSetup(chainConfig: ChainConfig, mint: bigint, unpau
 
   return {
     tokenAddress: tokenResult.token,
+    trexFactoryAddress,
+    accounts,
+    tokenAgent: {
+      walletName: tokenAgentWalletAlias,
+      address: tokenAgentWallet.address,
+    },
+    tokenOwner: {
+      walletName: tokenOwnerWalletAlias,
+      address: tokenOwnerWallet.address,
+    },
   };
 }
 

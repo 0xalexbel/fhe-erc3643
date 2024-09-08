@@ -23,7 +23,7 @@
     "fhevm": "0.5.8",
     "fhevmjs": "0.5.2",
     "hardhat": "^2.22.9",
-    "hardhat-fhevm": "^0.1.3",
+    "hardhat-fhevm": "^0.1.4",
     "hardhat-ignore-warnings": "^0.2.11",
     "hardhat-gas-reporter": "^2.2.1",
     "ts-node": "^10.9.2",

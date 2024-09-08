@@ -21,48 +21,17 @@ export type ChainConfigJSON = {
   claimIssuers: string[];
 };
 
-// export type MyHRE = {
-//   fhevm: {
-//     decrypt64: (handle: bigint) => Promise<bigint>;
-//     createEncryptedInput: (contract: EthersT.AddressLike, user: EthersT.AddressLike) => FhevmZKInputType;
-//   };
-// };
-
-// export type FhevmZKInputType = {
-//   add64: (value: number | bigint) => FhevmZKInputType;
-//   encrypt: () => {
+// export type CryptEngineConfig = {
+//   decrypt64: ((handle: bigint) => Promise<bigint>) | undefined;
+//   encrypt64: (
+//     contract: EthersT.AddressLike,
+//     user: EthersT.AddressLike,
+//     value: number | bigint,
+//   ) => Promise<{
 //     handles: Uint8Array[];
 //     inputProof: Uint8Array;
-//   };
+//   }>;
 // };
-
-// export type MyFhevmInstanceType = {
-//   createEncryptedInput: (contractAddress: string, userAddress: string) => any;
-//   generateKeypair: () => { publicKey: string; privateKey: string };
-//   createEIP712: (publicKey: string, contractAddress: string, userAddress?: string) => any;
-//   reencrypt: (
-//     handle: bigint,
-//     privateKey: string,
-//     publicKey: string,
-//     signature: string,
-//     contractAddress: string,
-//     userAddress: string,
-//   ) => Promise<bigint>;
-//   getPublicKey: () => string | null;
-// };
-
-//public createEncryptedInput(contractAddress: string, userAddress: string): HardhatFhevmZKInput {
-export type CryptEngineConfig = {
-  decrypt64: ((handle: bigint) => Promise<bigint>) | undefined;
-  encrypt64: (
-    contract: EthersT.AddressLike,
-    user: EthersT.AddressLike,
-    value: number | bigint,
-  ) => Promise<{
-    handles: Uint8Array[];
-    inputProof: Uint8Array;
-  }>;
-};
 
 export type ChainNetworkConfig = {
   url: string;
@@ -72,7 +41,7 @@ export type ChainNetworkConfig = {
     mnemonic: string;
     path: string;
   };
-  cryptEngine: CryptEngineConfig | undefined;
+  //cryptEngine: CryptEngineConfig | undefined;
   hardhatProvider: HardhatEthersProvider | undefined;
 };
 
@@ -105,7 +74,7 @@ export class ChainConfig {
   private _identities: Array<string>;
   private _tokens: Array<string>;
   private _claimIssuers: Array<string>;
-  private _cryptEngine: CryptEngineConfig | undefined;
+  //private _cryptEngine: CryptEngineConfig | undefined;
   private _fhevm: HardhatFhevmRuntimeEnvironmentType;
   private _fhevmInstance: HardhatFhevmInstanceType | undefined;
 
@@ -136,7 +105,7 @@ export class ChainConfig {
     this._tokens = [];
     this._historyPath = path;
     this._url = url;
-    this._cryptEngine = config?.cryptEngine;
+    //this._cryptEngine = config?.cryptEngine;
   }
 
   public get historyPath() {
@@ -471,15 +440,4 @@ export class ChainConfig {
 
     //return this._cryptEngine.encrypt64(contract, user, value);
   }
-
-  /*
-  //0x092e3462d81a26fb16296badcec4bf674b801f0b1552ac3a39d061c8a8322def
-          const instance = await hre.fhevm.createInstance();
-          const contractAddr = await hre.ethers.resolveAddress(contract);
-          const userAddr = await hre.ethers.resolveAddress(user);
-          const input = instance.createEncryptedInput(contractAddr, userAddr);
-          input.add64(value);
-          return input.encrypt();
-
-  */
 }

@@ -7,6 +7,7 @@ import {
   FhevmRuntimeEnvironmentType,
   HardhatFhevmRuntimeEnvironment,
 } from 'hardhat-fhevm/dist/src/common/HardhatFhevmRuntimeEnvironment';
+import { TASK_FHEVM_SETUP } from 'hardhat-fhevm/dist/src/task-names';
 
 /**
  * Start the fhevm local node if needed and deploy all FHEVM contracts
@@ -31,7 +32,8 @@ async function setupFhevmEnvironment(hre: HardhatRuntimeEnvironment) {
   } catch (e) {}
 
   // Add a separator
-  console.log('');
+  //console.log('');
+  //await hre.run(TASK_FHEVM_SETUP);
 }
 
 export function getHistoryPath() {
@@ -55,17 +57,17 @@ export async function loadChainConfig(hre: HardhatRuntimeEnvironment) {
       chainId,
       name: networkName,
       accounts: { path: walletPath, mnemonic },
-      cryptEngine: {
-        decrypt64: hre.fhevm.decrypt64.bind(hre.fhevm),
-        encrypt64: async (contract: EthersT.AddressLike, user: EthersT.AddressLike, value: number | bigint) => {
-          const instance = await hre.fhevm.createInstance();
-          const contractAddr = await hre.ethers.resolveAddress(contract);
-          const userAddr = await hre.ethers.resolveAddress(user);
-          const input = instance.createEncryptedInput(contractAddr, userAddr);
-          input.add64(value);
-          return input.encrypt();
-        },
-      },
+      // cryptEngine: {
+      //   decrypt64: hre.fhevm.decrypt64.bind(hre.fhevm),
+      //   encrypt64: async (contract: EthersT.AddressLike, user: EthersT.AddressLike, value: number | bigint) => {
+      //     const instance = await hre.fhevm.createInstance();
+      //     const contractAddr = await hre.ethers.resolveAddress(contract);
+      //     const userAddr = await hre.ethers.resolveAddress(user);
+      //     const input = instance.createEncryptedInput(contractAddr, userAddr);
+      //     input.add64(value);
+      //     return input.encrypt();
+      //   },
+      // },
       hardhatProvider: hre.network.name === 'hardhat' ? hre.ethers.provider : undefined,
     },
     historyPath,

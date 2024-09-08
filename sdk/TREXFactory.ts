@@ -177,10 +177,6 @@ export class TREXFactoryAPI {
       throw new FheERC3643Error('Deploy TREXSuite failed!');
     }
 
-    if (options?.progress) {
-      options.progress.contractDeployed('TREXFactory', await factory.getAddress());
-    }
-
     const log = txReceipt.logs.find(log => 'eventName' in log && log.eventName === 'TREXSuiteDeployed');
     if (!log) {
       throw new FheERC3643Error('Deploy TREXSuite failed!');
@@ -200,6 +196,10 @@ export class TREXFactoryAPI {
     const token = await TREXFactoryAPI.tokenFromSalt(factory, salt, chainConfig.provider);
     if ((await token?.getAddress()) !== tokenAddress) {
       throw new FheERC3643Error('Deploy TREXSuite failed! New token is not stored in the TREXFactory.');
+    }
+
+    if (options?.progress) {
+      options.progress.contractDeployed('Token', tokenAddress);
     }
 
     await chainConfig.saveToken(tokenAddress);
