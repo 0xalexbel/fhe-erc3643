@@ -1065,7 +1065,7 @@ describe('Compliance Module: TimeExchangeLimits', () => {
       const complianceOwner = context.accounts.deployer;
       const timeExchangeLimitsModule = context.suite.complianceModule;
 
-      const iTimeExchangeLimitsModule: TimeExchangeLimitsModuleInterface = timeExchangeLimitsModule.interface;
+      //const iTimeExchangeLimitsModule: TimeExchangeLimitsModuleInterface = timeExchangeLimitsModule.interface;
 
       // compliance.owner === deployer
       expect(complianceOwner.address).to.equal(context.accounts.deployer.address);

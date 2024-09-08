@@ -2,7 +2,7 @@ import { scope } from 'hardhat/config';
 import { string } from 'hardhat/internal/core/params/argumentTypes';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { loadChainConfig } from './utils';
-import { SCOPE_IDENTITY, SCOPE_IDENTITY_NEW, SCOPE_ROLES_ADD_AGENT } from './task-names';
+import { SCOPE_IDENTITY, SCOPE_IDENTITY_NEW } from './task-names';
 import { importCliModule } from './internal/imp';
 import { FheERC3643Error } from '../sdk/errors';
 

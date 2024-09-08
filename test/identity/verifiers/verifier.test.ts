@@ -5,7 +5,7 @@ describe('Verifier', () => {
   describe('.verify()', () => {
     describe('when the Verifier does expect claim topics', () => {
       it('should return true', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
 
         await expect(verifier.verify(aliceWallet.address)).to.eventually.be.true;
@@ -14,7 +14,7 @@ describe('Verifier', () => {
 
     describe('when the Verifier expect one claim topic but has no trusted issuers', () => {
       it('should return false', async () => {
-        const [deployerWallet, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployerWallet*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         await verifier.addClaimTopic(hre.ethers.encodeBytes32String('SOME_TOPIC'));
 
@@ -36,7 +36,7 @@ describe('Verifier', () => {
     describe('when the Verifier expect one claim topic and a trusted issuer for the topic', () => {
       describe('when the identity does not have the claim', () => {
         it('should return false', async () => {
-          const [deployerWallet, aliceWallet, claimIssuerWallet] = await hre.ethers.getSigners();
+          const [, /*deployerWallet*/ aliceWallet, claimIssuerWallet] = await hre.ethers.getSigners();
           const verifier = await hre.ethers.deployContract('Verifier');
           const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [claimIssuerWallet.address]);
           const claimIssuerAddress = await claimIssuer.getAddress();
@@ -51,7 +51,7 @@ describe('Verifier', () => {
 
       describe('when the identity does not have a valid expected claim', () => {
         it('should return false', async () => {
-          const [deployerWallet, aliceWallet, claimIssuerWallet] = await hre.ethers.getSigners();
+          const [, /*deployerWallet*/ aliceWallet, claimIssuerWallet] = await hre.ethers.getSigners();
           const verifier = await hre.ethers.deployContract('Verifier');
           const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [claimIssuerWallet.address]);
           const claimIssuerAddress = await claimIssuer.getAddress();
@@ -99,7 +99,7 @@ describe('Verifier', () => {
 
       describe('when the identity has the valid expected claim', () => {
         it('should return true', async () => {
-          const [deployerWallet, aliceWallet, claimIssuerWallet] = await hre.ethers.getSigners();
+          const [, /*deployerWallet*/ aliceWallet, claimIssuerWallet] = await hre.ethers.getSigners();
           const verifier = await hre.ethers.deployContract('Verifier');
           const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [claimIssuerWallet.address]);
           const claimIssuerAddress = await claimIssuer.getAddress();
@@ -148,7 +148,7 @@ describe('Verifier', () => {
     describe('when the Verifier expect multiple claim topics and allow multiple trusted issuers', () => {
       describe('when identity is compliant', () => {
         it('should return true', async () => {
-          const [deployerWallet, aliceWallet, claimIssuerAWallet, claimIssuerBWallet, claimIssuerCWallet] =
+          const [, /*deployerWallet*/ aliceWallet, claimIssuerAWallet, claimIssuerBWallet, claimIssuerCWallet] =
             await hre.ethers.getSigners();
           const verifier = await hre.ethers.deployContract('Verifier');
           const claimIssuerA = await hre.ethers.deployContract('ClaimIssuer', [claimIssuerAWallet.address]);
@@ -298,7 +298,7 @@ describe('Verifier', () => {
 
       describe('when identity is not compliant', () => {
         it('should return false', async () => {
-          const [deployer, aliceWallet, claimIssuerAWallet, claimIssuerBWallet] = await hre.ethers.getSigners();
+          const [, /*deployer*/ aliceWallet, claimIssuerAWallet, claimIssuerBWallet] = await hre.ethers.getSigners();
           const verifier = await hre.ethers.deployContract('Verifier');
           const claimIssuerA = await hre.ethers.deployContract('ClaimIssuer', [claimIssuerAWallet.address]);
           const claimIssuerB = await hre.ethers.deployContract('ClaimIssuer', [claimIssuerBWallet.address]);
@@ -417,7 +417,7 @@ describe('Verifier', () => {
   describe('.removeClaimTopic', () => {
     describe('when not called by the owner', () => {
       it('should revert', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
 
         await expect(verifier.connect(aliceWallet).removeClaimTopic(2)).to.be.revertedWithCustomError(
@@ -447,7 +447,7 @@ describe('Verifier', () => {
   describe('.removeTrustedIssuer', () => {
     describe('when not called by the owner', () => {
       it('should revert', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
         const claimIssuerAddress = await claimIssuer.getAddress();
@@ -460,7 +460,7 @@ describe('Verifier', () => {
 
     describe('when called by the owner', () => {
       it('should remove the trusted issuer', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
         const claimIssuerB = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
@@ -480,7 +480,9 @@ describe('Verifier', () => {
 
     describe('when issuer address is zero', () => {
       it('should revert', async () => {
-        const [deployer] = await hre.ethers.getSigners();
+        const [
+          /*deployer*/
+        ] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
 
         await expect(verifier.removeTrustedIssuer(hre.ethers.ZeroAddress)).to.be.revertedWith(
@@ -491,7 +493,7 @@ describe('Verifier', () => {
 
     describe('when issuer is not trusted', () => {
       it('should revert', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
         const claimIssuerAddress = await claimIssuer.getAddress();
@@ -504,7 +506,7 @@ describe('Verifier', () => {
   describe('.addTrustedIssuer', () => {
     describe('when not called by the owner', () => {
       it('should revert', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
         const claimIssuerAddress = await claimIssuer.getAddress();
@@ -517,7 +519,9 @@ describe('Verifier', () => {
 
     describe('when issuer address is the zero', () => {
       it('should revert', async () => {
-        const [deployer] = await hre.ethers.getSigners();
+        const [
+          /*deployer*/
+        ] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
 
         await expect(verifier.addTrustedIssuer(hre.ethers.ZeroAddress, [1])).to.be.revertedWith(
@@ -528,7 +532,7 @@ describe('Verifier', () => {
 
     describe('when issuer is already trusted', () => {
       it('should revert', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
         const claimIssuerAddress = await claimIssuer.getAddress();
@@ -584,7 +588,7 @@ describe('Verifier', () => {
   describe('.updateIssuerClaimTopics', () => {
     describe('when not called by the owner', () => {
       it('should revert', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
         const claimIssuerAddress = await claimIssuer.getAddress();
@@ -652,7 +656,7 @@ describe('Verifier', () => {
 
     describe('when list of topics is empty', () => {
       it('should revert', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
         const claimIssuerAddress = await claimIssuer.getAddress();
@@ -668,7 +672,7 @@ describe('Verifier', () => {
   describe('.getTrustedIssuerClaimTopic', () => {
     describe('when issuer is not trusted', () => {
       it('should revert', async () => {
-        const [deployer, aliceWallet] = await hre.ethers.getSigners();
+        const [, /*deployer*/ aliceWallet] = await hre.ethers.getSigners();
         const verifier = await hre.ethers.deployContract('Verifier');
         const claimIssuer = await hre.ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
         const claimIssuerAddress = await claimIssuer.getAddress();

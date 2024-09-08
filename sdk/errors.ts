@@ -22,6 +22,18 @@ export function throwIfInvalidAddress(address: string) {
   }
 }
 
+export function throwIfInvalidUint32(value: number) {
+  try {
+    const bn = EthersT.getUint(value);
+    const max = EthersT.getUint('0xFFFFFFFF');
+    if (bn > max) {
+      throw new Error();
+    }
+  } catch {
+    throw new FheERC3643Error(`Invalid positive integer: ${value}`);
+  }
+}
+
 export async function throwIfNotDeployed(name: string, provider: EthersT.Provider, address: string | undefined) {
   if (!(await isDeployed(provider, address))) {
     throw new FheERC3643Error(`${name} is not deployed (address: ${address})`);

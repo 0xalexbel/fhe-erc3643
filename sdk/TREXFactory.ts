@@ -1,6 +1,13 @@
 import assert from 'assert';
 import { ethers as EthersT } from 'ethers';
-import { ITREXFactory, Token, TREXFactory, TREXFactory__factory, TREXImplementationAuthority } from '../types';
+import {
+  ITREXFactory,
+  ModularCompliance__factory,
+  Token,
+  TREXFactory,
+  TREXFactory__factory,
+  TREXImplementationAuthority,
+} from '../types';
 import { IdFactoryAPI } from './IdFactoryAPI';
 import { TokenAPI } from './TokenAPI';
 import { ClaimDetails } from './ClaimIssuerAPI';
@@ -8,8 +15,13 @@ import { TxOptions } from './types';
 import { txWait } from './utils';
 import { IdentityRegistryAPI } from './IdentityRegistryAPI';
 import { TREXImplementationAuthorityAPI } from './TRexImplementationAuthorityAPI';
-import { FheERC3643Error } from './errors';
+import { FheERC3643Error, throwIfNotOwner } from './errors';
 import { ChainConfig } from './ChainConfig';
+import { ModularComplianceAPI } from './ModuleComplianceAPI';
+import { IdentityAPI } from './IdentityAPI';
+import { IdentityImplementationAuthorityAPI } from './IdentityImplementationAuthorityAPI';
+import { NewTokenResult } from './cli/token';
+import { ClaimTopicsRegistryAPI } from './ClaimTopicsRegistryAPI';
 
 export class TREXFactoryAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): TREXFactory {
@@ -98,44 +110,44 @@ export class TREXFactoryAPI {
     return token;
   }
 
-  /**
-   * Permissions: ???
-   */
-  static async createNewToken(
-    factory: TREXFactory,
-    salt: string,
-    tokenOwner: EthersT.AddressLike,
-    claimDetails: ClaimDetails,
-    irAgent: EthersT.AddressLike,
-    deployer: EthersT.Signer,
-    chainConfig: ChainConfig,
-    options?: TxOptions,
-  ) {
-    let tokenDetails: ITREXFactory.TokenDetailsStruct = {
-      owner: tokenOwner, //will be token management key
-      name: 'TREXDINO',
-      symbol: 'TREX',
-      decimals: 0n,
-      irs: EthersT.ZeroAddress, //created by the suite
-      ONCHAINID: EthersT.ZeroAddress, // created by the suite owner is management key
-      irAgents: [irAgent], //ir.AddAgent(...)
-      tokenAgents: [], //token.AddAgent(...) agentManager
-      complianceModules: [],
-      complianceSettings: [],
-    };
+  // /**
+  //  * Permissions: ???
+  //  */
+  // static async createNewToken(
+  //   factory: TREXFactory,
+  //   salt: string,
+  //   tokenOwner: EthersT.AddressLike,
+  //   claimDetails: ClaimDetails,
+  //   irAgent: EthersT.AddressLike,
+  //   deployer: EthersT.Signer,
+  //   chainConfig: ChainConfig,
+  //   options: TxOptions,
+  // ) {
+  //   let tokenDetails: ITREXFactory.TokenDetailsStruct = {
+  //     owner: tokenOwner, //will be token management key
+  //     name: 'TREXDINO',
+  //     symbol: 'TREX',
+  //     decimals: 0n,
+  //     irs: EthersT.ZeroAddress, //created by the suite
+  //     ONCHAINID: EthersT.ZeroAddress, // created by the suite owner is management key
+  //     irAgents: [irAgent], //ir.AddAgent(...)
+  //     tokenAgents: [], //token.AddAgent(...) agentManager
+  //     complianceModules: [],
+  //     complianceSettings: [],
+  //   };
 
-    const token = await this.deployTREXSuite(
-      factory,
-      salt,
-      tokenDetails,
-      claimDetails.toTREXClaimDetailsStruct(),
-      deployer,
-      chainConfig,
-      options,
-    );
+  //   const token = await this.deployTREXSuite(
+  //     factory,
+  //     salt,
+  //     tokenDetails,
+  //     claimDetails.toTREXClaimDetailsStruct(),
+  //     deployer,
+  //     chainConfig,
+  //     options,
+  //   );
 
-    return token;
-  }
+  //   return token;
+  // }
 
   /**
    * Permissions: factory owner
@@ -147,7 +159,7 @@ export class TREXFactoryAPI {
     claimDetails: ITREXFactory.ClaimDetailsStruct,
     factoryOwner: EthersT.Signer,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const existingToken = await TREXFactoryAPI.tokenFromSalt(factory, salt, factoryOwner);
     if (existingToken) {
@@ -185,6 +197,11 @@ export class TREXFactoryAPI {
     //   string indexed _salt
     const tokenAddress = log.args[0];
 
+    const token = await TREXFactoryAPI.tokenFromSalt(factory, salt, chainConfig.provider);
+    if ((await token?.getAddress()) !== tokenAddress) {
+      throw new FheERC3643Error('Deploy TREXSuite failed! New token is not stored in the TREXFactory.');
+    }
+
     await chainConfig.saveToken(tokenAddress);
 
     return {
@@ -198,11 +215,14 @@ export class TREXFactoryAPI {
     };
   }
 
+  //////////////////////////////////////////////////////////////////////////////
+
   static async transferTokenOwnership(
-    factory: TREXFactory,
-    salt: string,
+    token: Token,
     fromOwner: EthersT.Signer,
     toOwner: EthersT.Signer,
+    chainConfig: ChainConfig,
+    options: TxOptions,
   ) {
     const fromOwnerAddress = await fromOwner.getAddress();
     const toOwnerAddress = await toOwner.getAddress();
@@ -210,12 +230,14 @@ export class TREXFactoryAPI {
       return;
     }
 
-    const tokenAddress = await factory.getToken(salt);
+    const tokenAddress = await token.getAddress();
     if (tokenAddress === EthersT.ZeroAddress) {
       return null;
     }
 
-    const token = TokenAPI.from(tokenAddress, fromOwner);
+    token = token.connect(fromOwner);
+    throwIfNotOwner('Token', chainConfig, token, fromOwner);
+
     const ir = await TokenAPI.identityRegistry(token, fromOwner);
 
     const tir = await IdentityRegistryAPI.trustedIssuersRegistry(ir, fromOwner);
@@ -223,44 +245,216 @@ export class TREXFactoryAPI {
     const mc = await TokenAPI.compliance(token, fromOwner);
 
     const actualTokenOwnerAddress = await token.owner();
-    if (fromOwnerAddress !== actualTokenOwnerAddress && toOwnerAddress !== actualTokenOwnerAddress) {
-      throw new FheERC3643Error(`${fromOwnerAddress} is not the Token owner`);
-    }
-
-    const actualIROwnerAddress = await ir.owner();
-    if (fromOwnerAddress !== actualIROwnerAddress && toOwnerAddress !== actualIROwnerAddress) {
-      throw new FheERC3643Error(`${fromOwnerAddress} is not the Identity Registry owner`);
-    }
-
-    const actualTIROwnerAddress = await tir.owner();
-    if (fromOwnerAddress !== actualTIROwnerAddress && toOwnerAddress !== actualTIROwnerAddress) {
-      throw new FheERC3643Error(`${fromOwnerAddress} is not the Trusted Issuers Registry owner`);
-    }
-
-    const actualCTROwnerAddress = await ctr.owner();
-    if (fromOwnerAddress !== actualCTROwnerAddress && toOwnerAddress !== actualCTROwnerAddress) {
-      throw new FheERC3643Error(`${fromOwnerAddress} is not the Claim Topics Registry owner`);
-    }
-
     const actualMCOwnerAddress = await mc.owner();
-    if (fromOwnerAddress !== actualMCOwnerAddress && toOwnerAddress !== actualMCOwnerAddress) {
-      throw new FheERC3643Error(`${fromOwnerAddress} is not the Modular Compliance owner`);
-    }
+    const actualIROwnerAddress = await ir.owner();
+    const actualTIROwnerAddress = await tir.owner();
+    const actualCTROwnerAddress = await ctr.owner();
+
+    throwIfNotOwner('Token', chainConfig, token, fromOwnerAddress);
+    throwIfNotOwner('IdentityRegistry', chainConfig, ir, fromOwnerAddress);
+    throwIfNotOwner('TrustedIssuersRegistry', chainConfig, tir, fromOwnerAddress);
+    throwIfNotOwner('ClaimTopicsRegistry', chainConfig, ctr, fromOwnerAddress);
+    throwIfNotOwner('ModularCompliance', chainConfig, mc, fromOwnerAddress);
 
     if (toOwnerAddress !== actualTokenOwnerAddress) {
-      await txWait(token.transferOwnership(toOwner));
+      await txWait(token.transferOwnership(toOwner), options);
     }
     if (toOwnerAddress !== actualIROwnerAddress) {
-      await txWait(ir.transferOwnership(toOwner));
+      await txWait(ir.connect(fromOwner).transferOwnership(toOwner), options);
     }
     if (toOwnerAddress !== actualTIROwnerAddress) {
-      await txWait(tir.transferOwnership(toOwner));
+      await txWait(tir.connect(fromOwner).transferOwnership(toOwner), options);
     }
     if (toOwnerAddress !== actualCTROwnerAddress) {
-      await txWait(ctr.transferOwnership(toOwner));
+      await txWait(ctr.connect(fromOwner).transferOwnership(toOwner), options);
     }
     if (toOwnerAddress !== actualMCOwnerAddress) {
-      await txWait(mc.transferOwnership(toOwner));
+      await txWait(mc.connect(fromOwner).transferOwnership(toOwner), options);
     }
   }
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  static async deployTREXSuiteManual(
+    factory: TREXFactory,
+    salt: string,
+    tokenDetails: ITREXFactory.TokenDetailsStruct,
+    claimDetails: ITREXFactory.ClaimDetailsStruct,
+    tokenOwner: EthersT.Signer,
+    factoryOwner: EthersT.Signer,
+    chainConfig: ChainConfig,
+    options: TxOptions,
+  ): Promise<NewTokenResult> {
+    if (tokenDetails.owner !== (await tokenOwner.getAddress())) {
+      throw new FheERC3643Error(`Invalid token owner.`);
+    }
+
+    const trexImplementationAuthorityAddress = await factory.connect(factoryOwner).getImplementationAuthority();
+    const trexImplementationAuthority = await TREXImplementationAuthorityAPI.fromWithOwner(
+      trexImplementationAuthorityAddress,
+      factoryOwner,
+    );
+
+    //Deploy IdentityRegistry
+    const { identityRegistry, identityRegistryStorage, trustedIssuersRegistry, claimTopicsRegistry } =
+      await IdentityRegistryAPI.deployNew(trexImplementationAuthority, factoryOwner, options);
+
+    // Deploy compliance
+    const compliance = await ModularComplianceAPI.deployNew(factory, factoryOwner, options);
+
+    // Deploy token
+    const token = await TokenAPI.deployNew(
+      factory,
+      factoryOwner,
+      factoryOwner,
+      identityRegistry,
+      compliance,
+      salt,
+      tokenDetails,
+      chainConfig,
+      options,
+    );
+
+    //Claim detials
+    for (let i = 0; i < claimDetails.claimTopics.length; ++i) {
+      await txWait(claimTopicsRegistry.addClaimTopic(claimDetails.claimTopics[i]), options);
+    }
+    for (let i = 0; i < claimDetails.issuers.length; ++i) {
+      await txWait(
+        trustedIssuersRegistry.addTrustedIssuer(claimDetails.issuers[i], claimDetails.issuerClaims[i]),
+        options,
+      );
+    }
+
+    // Transfer ownership
+    await TREXFactoryAPI.transferTokenOwnership(token, factoryOwner, tokenOwner, chainConfig, options);
+
+    return {
+      token: await token.getAddress(),
+      ir: await identityRegistry.getAddress(),
+      ctr: await claimTopicsRegistry.getAddress(),
+      irs: await identityRegistryStorage.getAddress(),
+      tir: await trustedIssuersRegistry.getAddress(),
+      mc: await compliance.getAddress(),
+      saltHash: EthersT.ZeroHash,
+    };
+
+    //        AgentRole(address(ir)).addAgent(address(token));
+
+    // IdentityImplementationAuthorityAPI.deployNewIdentity()
+    // const tokenOID = await IdentityAPI(
+    //   identityImplementationAuthority,
+    //   managementKey,
+    //   deployer,
+    //   `token: ${tokenName}`,
+    //   progress,
+    // );
+
+    //ITrustedIssuersRegistry tir = ITrustedIssuersRegistry(_deployTIR(_salt, _implementationAuthority));
+    /*
+
+  //Deploy Compliance
+  const defaultCompliance = await hre.ethers.deployContract('DefaultCompliance', deployer);
+  await defaultCompliance.waitForDeployment();
+  progress.logContractStep('DefaultCompliance', await defaultCompliance.getAddress());
+
+  const { token, tokenOID, agentManager } = await deployTRexToken(
+    'TREXDINO',
+    'TREX',
+    0n,
+    identityImplementationAuthority,
+    trexImplementationAuthority,
+    tokenIssuer.address,
+    identityRegistry,
+    defaultCompliance,
+    tokenAgent,
+    deployer,
+    progress,
+  );
+
+    */
+  }
+
+  /*
+        require(_tokenDeployed[_salt] == address(0), "token already deployed");
+        require((_claimDetails.issuers).length == (_claimDetails.issuerClaims).length, "claim pattern not valid");
+        require((_claimDetails.issuers).length <= 5, "max 5 claim issuers at deployment");
+        require((_claimDetails.claimTopics).length <= 5, "max 5 claim topics at deployment");
+        require(
+            (_tokenDetails.irAgents).length <= 5 && (_tokenDetails.tokenAgents).length <= 5,
+            "max 5 agents at deployment"
+        );
+        require((_tokenDetails.complianceModules).length <= 30, "max 30 module actions at deployment");
+        require(
+            (_tokenDetails.complianceModules).length >= (_tokenDetails.complianceSettings).length,
+            "invalid compliance pattern"
+        );
+
+        ITrustedIssuersRegistry tir = ITrustedIssuersRegistry(_deployTIR(_salt, _implementationAuthority));
+        IClaimTopicsRegistry ctr = IClaimTopicsRegistry(_deployCTR(_salt, _implementationAuthority));
+        IModularCompliance mc = IModularCompliance(_deployMC(_salt, _implementationAuthority));
+        IIdentityRegistryStorage irs;
+        if (_tokenDetails.irs == address(0)) {
+            irs = IIdentityRegistryStorage(_deployIRS(_salt, _implementationAuthority));
+        } else {
+            irs = IIdentityRegistryStorage(_tokenDetails.irs);
+        }
+        IIdentityRegistry ir = IIdentityRegistry(
+            _deployIR(_salt, _implementationAuthority, address(tir), address(ctr), address(irs))
+        );
+        IToken token = IToken(
+            _deployToken(
+                _salt,
+                _implementationAuthority,
+                address(ir),
+                address(mc),
+                _tokenDetails.name,
+                _tokenDetails.symbol,
+                _tokenDetails.decimals,
+                _tokenDetails.ONCHAINID
+            )
+        );
+        if (_tokenDetails.ONCHAINID == address(0)) {
+            address _tokenID = IIdFactory(_idFactory).createTokenIdentity(address(token), _tokenDetails.owner, _salt);
+            token.setOnchainID(_tokenID);
+        }
+        for (uint256 i = 0; i < (_claimDetails.claimTopics).length; i++) {
+            ctr.addClaimTopic(_claimDetails.claimTopics[i]);
+        }
+        for (uint256 i = 0; i < (_claimDetails.issuers).length; i++) {
+            tir.addTrustedIssuer(IClaimIssuer((_claimDetails).issuers[i]), _claimDetails.issuerClaims[i]);
+        }
+        irs.bindIdentityRegistry(address(ir));
+        AgentRole(address(ir)).addAgent(address(token));
+        for (uint256 i = 0; i < (_tokenDetails.irAgents).length; i++) {
+            AgentRole(address(ir)).addAgent(_tokenDetails.irAgents[i]);
+        }
+        for (uint256 i = 0; i < (_tokenDetails.tokenAgents).length; i++) {
+            AgentRole(address(token)).addAgent(_tokenDetails.tokenAgents[i]);
+        }
+        for (uint256 i = 0; i < (_tokenDetails.complianceModules).length; i++) {
+            if (!mc.isModuleBound(_tokenDetails.complianceModules[i])) {
+                mc.addModule(_tokenDetails.complianceModules[i]);
+            }
+            if (i < (_tokenDetails.complianceSettings).length) {
+                mc.callModuleFunction(_tokenDetails.complianceSettings[i], _tokenDetails.complianceModules[i]);
+            }
+        }
+        _tokenDeployed[_salt] = address(token);
+        (Ownable(address(token))).transferOwnership(_tokenDetails.owner);
+        (Ownable(address(ir))).transferOwnership(_tokenDetails.owner);
+        (Ownable(address(tir))).transferOwnership(_tokenDetails.owner);
+        (Ownable(address(ctr))).transferOwnership(_tokenDetails.owner);
+        (Ownable(address(mc))).transferOwnership(_tokenDetails.owner);
+        emit TREXSuiteDeployed(
+            address(token),
+            address(ir),
+            address(irs),
+            address(tir),
+            address(ctr),
+            address(mc),
+            _salt
+        );
+
+  */
 }

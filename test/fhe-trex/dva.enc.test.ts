@@ -3,7 +3,7 @@ import hre, { ethers } from 'hardhat';
 
 import { deployFullSuiteFixture } from './fixtures/deploy-full-suite.fixture';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
-import { DVATransferManager, Identity, IdentityRegistry, Token } from '../../types';
+import { DVATransferManager, IdentityRegistry } from '../../types';
 import { encrypt64, getLogEventArgs } from '../utils';
 
 describe('DVATransferManager', () => {
@@ -171,8 +171,7 @@ describe('DVATransferManager', () => {
 
       describe('when sender has enough balance', () => {
         describe('when includeRecipientApprover is true', () => {
-          it('BBBB should initiate the transfer with recipient approver', async () => {
-            await hre.fhevm.init(true);
+          it('should initiate the transfer with recipient approver', async () => {
             const context = await deployFullSuiteWithVerifiedTransferManager();
             await context.suite.transferManager
               .connect(context.accounts.tokenAgent)

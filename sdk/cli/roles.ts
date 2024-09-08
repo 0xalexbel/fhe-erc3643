@@ -1,6 +1,6 @@
 import { AgentRoleAPI } from '../AgentRoleAPI';
 import { ChainConfig } from '../ChainConfig';
-import { logDim, logInfo, logOK } from '../log';
+import { logInfo, logOK } from '../log';
 import { TxOptions } from '../types';
 import { defaultTxOptions } from '../utils';
 
@@ -12,10 +12,8 @@ export async function cmdAddAgent(
   target: string,
   wallet: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ): Promise<boolean> {
-  options = options ?? defaultTxOptions(1);
-
   const address = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(addressAlias);
 
   const agentRoleOwner =
@@ -25,13 +23,13 @@ export async function cmdAddAgent(
 
   const agentRole = await AgentRoleAPI.fromWithOwner(target, agentRoleOwner);
   if (await agentRole.isAgent(address)) {
-    if (options?.mute !== true) {
+    if (options.mute !== true) {
       logInfo(`Address '${addressAlias}' is already an agent of '${target}'`);
     }
     return false;
   }
 
-  await AgentRoleAPI.addAgent(agentRole, address, agentRoleOwner);
+  await AgentRoleAPI.addAgent(agentRole, address, agentRoleOwner, options);
 
   if (options) {
     if (options.mute !== true) {

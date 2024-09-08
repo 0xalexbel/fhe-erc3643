@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import hre, { ethers } from 'hardhat';
+import { ethers } from 'hardhat';
 
 import { deployFullSuiteFixture } from './fixtures/deploy-full-suite.fixture';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
-import { DVATransferManager, Identity, IdentityRegistry, Token } from '../../types';
-import { encrypt64, getLogEventArgs } from '../utils';
+import { DVATransferManager, IdentityRegistry } from '../../types';
+import { encrypt64 } from '../utils';
 
 describe('DVATransferManager', () => {
   async function deployFullSuiteWithTransferManager() {

@@ -174,8 +174,6 @@ describe('Compliance Module: SupplyLimit', () => {
 
         const encAmount = await encrypt64(context.suite.complianceModule, context.suite.compliance, 100);
 
-        console.log('compliance=' + (await context.suite.compliance.getAddress()));
-        console.log('module=' + (await context.suite.complianceModule.getAddress()));
         // within setSupplyLimit running code msg.sender === context.suite.compliance
         const tx = await context.suite.compliance.callModuleFunction(
           new ethers.Interface(['function setSupplyLimit(bytes32,bytes)']).encodeFunctionData('setSupplyLimit', [

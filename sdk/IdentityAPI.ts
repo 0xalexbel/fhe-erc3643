@@ -59,7 +59,7 @@ export class IdentityAPI {
     identity: Identity,
     key: EthersT.AddressLike,
     manager: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     if (await this.keyHasPurpose(identity, key, KEY_PURPOSE_MANAGEMENT)) {
       throw new FheERC3643Error(`Key ${await EthersT.resolveAddress(key)} is already a management key`);
@@ -71,7 +71,7 @@ export class IdentityAPI {
    * Permissions: Manager
    * @throws `Error` if `manager` is not a management key stored in `identity`
    */
-  static async addClaimKey(identity: Identity, key: EthersT.AddressLike, manager: EthersT.Signer, options?: TxOptions) {
+  static async addClaimKey(identity: Identity, key: EthersT.AddressLike, manager: EthersT.Signer, options: TxOptions) {
     return this.addKey(identity, key, KEY_PURPOSE_CLAIM, KEY_TYPE_ECDSA, manager, options);
   }
 
@@ -79,12 +79,7 @@ export class IdentityAPI {
    * Permissions: Manager
    * @throws `Error` if `manager` is not a management key stored in `identity`
    */
-  static async addActionKey(
-    identity: Identity,
-    key: EthersT.AddressLike,
-    manager: EthersT.Signer,
-    options?: TxOptions,
-  ) {
+  static async addActionKey(identity: Identity, key: EthersT.AddressLike, manager: EthersT.Signer, options: TxOptions) {
     return this.addKey(identity, key, KEY_PURPOSE_ACTION, KEY_TYPE_ECDSA, manager, options);
   }
 
@@ -99,7 +94,7 @@ export class IdentityAPI {
     purpose: number,
     type: number,
     manager: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const hash = await this._toKey(key);
 
@@ -145,7 +140,7 @@ export class IdentityAPI {
     signedClaim: SignedClaim,
     uri: string,
     manager: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     if (!(await this.isManager(identity, manager))) {
       throw new FheERC3643Error(
@@ -236,7 +231,7 @@ export class IdentityAPI {
     topic: EthersT.BigNumberish,
     issuer: ClaimIssuer,
     manager: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     if (!(await this.isManager(identity, manager))) {
       throw new FheERC3643Error(
@@ -272,7 +267,7 @@ export class IdentityAPI {
     key: EthersT.AddressLike,
     purpose: number,
     manager: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const hash = await this._toKey(key);
 

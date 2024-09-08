@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { ethers as EthersT } from 'ethers';
 import { scope } from 'hardhat/config';
-import { bigint, inputFile, string } from 'hardhat/internal/core/params/argumentTypes';
+import { bigint, inputFile, int, string } from 'hardhat/internal/core/params/argumentTypes';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { loadChainConfig } from './utils';
 import {
@@ -17,8 +17,10 @@ import {
   SCOPE_TOKEN_SUPPLY_GET_LIMIT,
   SCOPE_TOKEN_SUPPLY_SET_LIMIT,
   SCOPE_TOKEN_TIME_EXCHANGE_ADD_ID,
+  SCOPE_TOKEN_TIME_EXCHANGE_GET_LIMITS,
   SCOPE_TOKEN_TIME_EXCHANGE_IS_ID,
   SCOPE_TOKEN_TIME_EXCHANGE_REMOVE_ID,
+  SCOPE_TOKEN_TIME_EXCHANGE_SET_LIMITS,
   SCOPE_TOKEN_TOTAL_SUPPLY,
   SCOPE_TOKEN_TRANSFER,
   SCOPE_TOKEN_UNFREEZE,
@@ -237,22 +239,26 @@ tokenScope
     return await cmds.cmdTokenIsPaused(token, chainConfig, options);
   });
 
-//npx hardhat --network fhevm token transfer --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --wallet alice --to bob
+//npx hardhat --network fhevm token transfer --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --wallet alice --to bob --amount 10n
 tokenScope
   .task(SCOPE_TOKEN_TRANSFER)
   .setDescription('Transfers a specified amount of tokens from one user to another')
   .addParam('token', 'Token address', undefined, string)
   .addParam('wallet', 'The wallet index/alias of the owner of the tokens to transfer', undefined, string)
   .addParam('to', 'The address or wallet index/alias of the user who will receive the tokens', undefined, string)
+  .addParam('amount', 'The amount of tokens to transfer', undefined, bigint)
   .setAction(
-    async ({ token, wallet, to }: { token: string; wallet: string; to: string }, hre: HardhatRuntimeEnvironment) => {
+    async (
+      { token, wallet, to, amount }: { token: string; wallet: string; to: string; amount: bigint },
+      hre: HardhatRuntimeEnvironment,
+    ) => {
       const cmds = await importCliModule('token', hre);
       const chainConfig = await loadChainConfig(hre);
 
       const options = defaultTxOptions(1);
       options.mute = true;
 
-      return await cmds.cmdTokenTransfer(token, wallet, to, chainConfig, options);
+      return await cmds.cmdTokenTransfer(token, wallet, to, amount, chainConfig, options);
     },
   );
 
@@ -322,38 +328,84 @@ tokenScope
 
 tokenScope
   .task(SCOPE_TOKEN_TIME_EXCHANGE_ADD_ID)
-  .setDescription('Tags an identity as being an exchange ID')
+  .setDescription('Tags an identity as being an exchange ID (token owner only)')
   .addParam('token', 'Token address', undefined, string)
+  .addParam('owner', 'The address or wallet index/alias of the token owner', undefined, string)
   .addParam('user', 'The wallet index/alias associated to the identity to tag', undefined, string)
-  .setAction(async ({ token, user }: { token: string; user: string }, hre: HardhatRuntimeEnvironment) => {
-    const cmds = await importCliModule('timeexchange', hre);
-    const chainConfig = await loadChainConfig(hre);
+  .setAction(
+    async ({ token, owner, user }: { token: string; owner: string; user: string }, hre: HardhatRuntimeEnvironment) => {
+      const cmds = await importCliModule('timeexchange', hre);
+      const chainConfig = await loadChainConfig(hre);
 
-    const options = defaultTxOptions(1);
-    options.mute = true;
+      const options = defaultTxOptions(1);
+      options.mute = true;
 
-    return await cmds.cmdTokenTimeExchangeAddId(token, user, 'token-owner', chainConfig, options);
-  });
+      return await cmds.cmdTokenTimeExchangeAddId(token, user, owner, chainConfig, options);
+    },
+  );
 
 tokenScope
   .task(SCOPE_TOKEN_TIME_EXCHANGE_REMOVE_ID)
-  .setDescription('Untags an identity as being an exchange ID')
+  .setDescription('Untags an identity as being an exchange ID (token owner only)')
   .addParam('token', 'Token address', undefined, string)
+  .addParam('owner', 'The address or wallet index/alias of the token owner', undefined, string)
   .addParam('user', 'The wallet index/alias associated to the identity to untag', undefined, string)
+  .setAction(
+    async ({ token, owner, user }: { token: string; owner: string; user: string }, hre: HardhatRuntimeEnvironment) => {
+      const cmds = await importCliModule('timeexchange', hre);
+      const chainConfig = await loadChainConfig(hre);
+
+      const options = defaultTxOptions(1);
+      options.mute = true;
+
+      return await cmds.cmdTokenTimeExchangeRemoveId(token, user, owner, chainConfig, options);
+    },
+  );
+
+tokenScope
+  .task(SCOPE_TOKEN_TIME_EXCHANGE_SET_LIMITS)
+  .setDescription(
+    'Sets the limit of tokens allowed to be transferred to the given exchangeID in a given period of time (agent only)',
+  )
+  .addParam('token', 'Token address', undefined, string)
+  .addParam('agent', 'The address or wallet index/alias of a token agent', undefined, string)
+  .addParam('user', 'The wallet index/alias associated to the identity', undefined, string)
+  .addParam('time', 'The time limit', undefined, int)
+  .addParam('value', 'The value limit', undefined, bigint)
+  .setAction(
+    async (
+      { token, agent, user, time, value }: { token: string; agent: string; user: string; time: number; value: number },
+      hre: HardhatRuntimeEnvironment,
+    ) => {
+      const cmds = await importCliModule('timeexchange', hre);
+      const chainConfig = await loadChainConfig(hre);
+
+      const options = defaultTxOptions(1);
+      options.mute = true;
+
+      return await cmds.cmdTokenTimeExchangeSetLimits(token, user, time, value, agent, chainConfig, options);
+    },
+  );
+
+tokenScope
+  .task(SCOPE_TOKEN_TIME_EXCHANGE_GET_LIMITS)
+  .setDescription(
+    'Gets the limit of tokens allowed to be transferred to the given exchangeID in a given period of time',
+  )
+  .addParam('token', 'Token address', undefined, string)
+  .addParam('user', 'The wallet index/alias associated to the identity', undefined, string)
   .setAction(async ({ token, user }: { token: string; user: string }, hre: HardhatRuntimeEnvironment) => {
     const cmds = await importCliModule('timeexchange', hre);
     const chainConfig = await loadChainConfig(hre);
 
-    const options = defaultTxOptions(1);
+    const options = defaultTxOptions(2);
     options.mute = true;
 
-    return await cmds.cmdTokenTimeExchangeRemoveId(token, user, 'token-owner', chainConfig, options);
+    return await cmds.cmdTokenTimeExchangeGetLimits(token, user, chainConfig, options);
   });
 
-// transfer
 // forcedtransfer (onlyAgent)
 // freeze-user (onlyAgent)
 // unfreeze-user (onlyAgent)
 // transfer-from
 // approve --spender <addr> --amount <v>
-// set eexchange limit

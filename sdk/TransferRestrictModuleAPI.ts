@@ -1,18 +1,9 @@
 import { ethers as EthersT } from 'ethers';
-import {
-  ModularCompliance,
-  SupplyLimitModule,
-  SupplyLimitModule__factory,
-  Token,
-  TransferRestrictModule,
-  TransferRestrictModule__factory,
-} from './artifacts';
+import { ModularCompliance, Token, TransferRestrictModule, TransferRestrictModule__factory } from './artifacts';
 import { TxOptions } from './types';
 import { txWait } from './utils';
 import { ChainConfig } from './ChainConfig';
-import { getLogEventArgs } from '../test/utils';
 import { FheERC3643Error } from './errors';
-import { logStepMsg } from './log';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { ModuleAPI } from './ModuleAPI';
@@ -60,11 +51,11 @@ export class TransferRestrictModuleAPI {
     complianceOwner: EthersT.Signer,
     allowedAddresses: Array<EthersT.AddressLike>,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const imodule = await ModuleAPI.deployNew('TransferRestrictModule', moduleImplementationOwner);
     const transferRestrictModule = TransferRestrictModuleAPI.from(await imodule.getAddress(), chainConfig.provider);
-    await ModularComplianceAPI.addModule(compliance, transferRestrictModule, complianceOwner);
+    await ModularComplianceAPI.addModule(compliance, transferRestrictModule, complianceOwner, options);
     if (options?.progress) {
       options.progress.contractDeployed('TransferRestrictModule', await transferRestrictModule.getAddress());
     }
@@ -85,7 +76,7 @@ export class TransferRestrictModuleAPI {
     compliance: ModularCompliance,
     allowedAddresses: EthersT.AddressLike[],
     signer: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const txReceipt = await txWait(
       compliance
@@ -94,6 +85,7 @@ export class TransferRestrictModuleAPI {
           TransferRestrictModule__factory.createInterface().encodeFunctionData('batchAllowUsers', [allowedAddresses]),
           module,
         ),
+      options,
     );
     return txReceipt;
   }

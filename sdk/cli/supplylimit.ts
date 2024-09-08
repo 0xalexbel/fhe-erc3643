@@ -1,4 +1,3 @@
-import assert from 'assert';
 import { ChainConfig } from '../ChainConfig';
 import { throwIfInvalidAddress, throwIfNotDeployed, throwIfNotOwner } from '../errors';
 import { SupplyLimitModuleAPI } from '../SupplyLimitModuleAPI';
@@ -52,12 +51,7 @@ export async function cmdTokenSetSupplyLimit(
 
   await throwIfNotOwner("token's Compliance", chainConfig, compliance, complianceOwnerWallet);
 
-  return await SupplyLimitModuleAPI.setSupplyLimit(
-    module,
-    compliance,
-    amount,
-    complianceOwnerWallet,
-    chainConfig,
-    options,
-  );
+  await SupplyLimitModuleAPI.setSupplyLimit(module, compliance, amount, complianceOwnerWallet, chainConfig, options);
+
+  logStepMsg(`Module supply limit is now set to ${amount} (module address: ${await module.getAddress()})...`, options);
 }

@@ -26,7 +26,7 @@ import { IdentityImplementationAuthorityAPI } from './IdentityImplementationAuth
 import { TREXFactoryAPI } from './TREXFactory';
 import { IdFactoryAPI } from './IdFactoryAPI';
 import { ChainConfig } from './ChainConfig';
-import { FheERC3643Error } from './errors';
+import { FheERC3643Error, throwIfNotOwner } from './errors';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,7 +140,7 @@ export class TREXImplementationAuthorityAPI {
     return authority;
   }
 
-  static async loadOrDeployNewMain(authority: string | null | undefined, owner: EthersT.Signer, options?: TxOptions) {
+  static async loadOrDeployNewMain(authority: string | null | undefined, owner: EthersT.Signer, options: TxOptions) {
     if (authority) {
       return TREXImplementationAuthorityAPI.fromWithOwner(authority, owner);
     } else {
@@ -159,7 +159,7 @@ export class TREXImplementationAuthorityAPI {
       modularComplianceImplementation?: ModularCompliance;
     },
     deployer: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ): Promise<TREXImplementationAuthority> {
     const factory = new TREXImplementationAuthority__factory();
 
@@ -245,7 +245,7 @@ export class TREXImplementationAuthorityAPI {
     idFactory: IdFactory | undefined,
     deployer: EthersT.Signer,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     if (!authority) {
       authority = await this.deployNewMain({ major: 4, minor: 0, patch: 0 }, {}, deployer, options);
@@ -277,7 +277,7 @@ export class TREXImplementationAuthorityAPI {
     config: TREXConfig,
     owner: EthersT.Signer,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     let idFactory: IdFactory;
     let authority: TREXImplementationAuthority;

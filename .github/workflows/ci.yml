@@ -1,0 +1,42 @@
+# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
+# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
+
+name: Test Mock Fhevm
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Check out the repo'
+        uses: actions/checkout@v4
+
+      - name: 'Install Node.js'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 'Install package'
+        run: npm ci
+
+      # - name: 'Lint package'
+      #   run: 'npm run lint'
+
+      # - name: 'Add lint summary'
+      #   run: |
+      #     echo "## Lint results" >> $GITHUB_STEP_SUMMARY
+      #     echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+
+      - name: 'Test fhevm in mock mode'
+        run: ./tests.sh
+
+      - name: 'Add test summary'
+        run: |
+          echo "## Test results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY

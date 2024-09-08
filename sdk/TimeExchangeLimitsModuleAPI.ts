@@ -57,11 +57,11 @@ export class TimeExchangeLimitsModuleAPI {
     compliance: ModularCompliance,
     complianceOwner: EthersT.Signer,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const imodule = await ModuleAPI.deployNew('TimeExchangeLimitsModule', moduleImplementationOwner);
     const timeExchangeLimitsModule = TimeExchangeLimitsModuleAPI.from(await imodule.getAddress(), chainConfig.provider);
-    await ModularComplianceAPI.addModule(compliance, timeExchangeLimitsModule, complianceOwner);
+    await ModularComplianceAPI.addModule(compliance, timeExchangeLimitsModule, complianceOwner, options);
     if (options?.progress) {
       options.progress.contractDeployed('TimeExchangeLimitsModule', await timeExchangeLimitsModule.getAddress());
     }
@@ -83,7 +83,7 @@ export class TimeExchangeLimitsModuleAPI {
     identity: Identity,
     owner: EthersT.Signer,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     await throwIfNotOwner('TimeExchangeLimitsModule', chainConfig, module, owner);
 
@@ -91,7 +91,7 @@ export class TimeExchangeLimitsModuleAPI {
       return;
     }
 
-    const txReceipt = await txWait(module.connect(owner).addExchangeID(identity));
+    const txReceipt = await txWait(module.connect(owner).addExchangeID(identity), options);
 
     const args = getLogEventArgs(txReceipt, 'ExchangeIDAdded', undefined, module);
     if (args.length !== 1) {
@@ -110,7 +110,7 @@ export class TimeExchangeLimitsModuleAPI {
     identity: Identity,
     owner: EthersT.Signer,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     await throwIfNotOwner('TimeExchangeLimitsModule', chainConfig, module, owner);
 
@@ -118,7 +118,7 @@ export class TimeExchangeLimitsModuleAPI {
       return;
     }
 
-    const txReceipt = await txWait(module.connect(owner).removeExchangeID(identity));
+    const txReceipt = await txWait(module.connect(owner).removeExchangeID(identity), options);
 
     const args = getLogEventArgs(txReceipt, 'ExchangeIDRemoved', undefined, module);
     if (args.length !== 1) {
@@ -130,5 +130,69 @@ export class TimeExchangeLimitsModuleAPI {
     if (await module.isExchangeID(identity)) {
       throw new FheERC3643Error(`Failed to remove exchange ID (Tx is not completed)`);
     }
+  }
+
+  static async setExchangeLimits(
+    module: TimeExchangeLimitsModule,
+    compliance: ModularCompliance,
+    identity: Identity,
+    timeLimit: number,
+    valueLimit: bigint,
+    signer: EthersT.Signer,
+    chainConfig: ChainConfig,
+    options: TxOptions,
+  ) {
+    const encValueLimit = await chainConfig.encrypt64(module, compliance, valueLimit);
+
+    const identityAddress = await identity.getAddress();
+    const txReceipt = await txWait(
+      compliance
+        .connect(signer)
+        .callModuleFunction(
+          TimeExchangeLimitsModule__factory.createInterface().encodeFunctionData(
+            'setExchangeLimit(address,uint32,bytes32,bytes)',
+            [identityAddress, timeLimit, encValueLimit.handles[0], encValueLimit.inputProof],
+          ),
+          module,
+        ),
+      options,
+    );
+
+    const args = getLogEventArgs(txReceipt, 'ExchangeLimitUpdated', undefined, module);
+    if (args.length !== 4) {
+      throw new FheERC3643Error(`Failed to set the supply limit`);
+    }
+    if (args[0] !== (await compliance.getAddress())) {
+      throw new FheERC3643Error(`Failed to set the supply limit`);
+    }
+    if (args[1] !== (await identity.getAddress())) {
+      throw new FheERC3643Error(`Failed to set the supply limit`);
+    }
+    if (args[2] !== EthersT.toBigInt(encValueLimit.handles[0])) {
+      throw new FheERC3643Error(`Failed to set the supply limit`);
+    }
+    if (EthersT.toBigInt(args[3]) !== EthersT.toBigInt(timeLimit)) {
+      throw new FheERC3643Error(`Failed to set the supply limit`);
+    }
+  }
+
+  static async getExchangeLimits(
+    module: TimeExchangeLimitsModule,
+    compliance: ModularCompliance,
+    identity: Identity,
+    chainConfig: ChainConfig,
+    options?: TxOptions,
+  ) {
+    const res = await module.connect(chainConfig.provider).getExchangeLimits(compliance, identity);
+
+    const output: Array<{ timeLimit: bigint; valueLimitFhevmHandle: bigint }> = [];
+    for (let i = 0; i < res.length; ++i) {
+      output.push({
+        timeLimit: res[i][0],
+        valueLimitFhevmHandle: res[i][1],
+      });
+    }
+
+    return output;
   }
 }

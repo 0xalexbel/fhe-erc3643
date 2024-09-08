@@ -6,6 +6,9 @@ import {
   IModule__factory,
   ModularCompliance,
   ModularCompliance__factory,
+  ModularComplianceProxy,
+  ModularComplianceProxy__factory,
+  TREXFactory,
 } from './artifacts';
 import { TxOptions } from './types';
 import { txWait } from './utils';
@@ -33,6 +36,20 @@ export class ModularComplianceAPI {
     return contract;
   }
 
+  static async deployNew(
+    trexFactory: TREXFactory,
+    deployer: EthersT.Signer,
+    options: TxOptions,
+  ): Promise<ModularCompliance> {
+    const factory = new ModularComplianceProxy__factory();
+    const proxy: ModularComplianceProxy = await factory
+      .connect(deployer)
+      .deploy(await trexFactory.getImplementationAuthority());
+    await proxy.waitForDeployment();
+
+    return ModularCompliance__factory.connect(await proxy.getAddress(), deployer);
+  }
+
   /**
    * Requirements:
    * - ModularCompliance.owner === owner
@@ -41,7 +58,7 @@ export class ModularComplianceAPI {
     compliance: ModularCompliance,
     module: IModule,
     complianceOwner: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const moduleAddress = await module.getAddress();
     if (moduleAddress === EthersT.ZeroAddress) {

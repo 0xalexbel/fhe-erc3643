@@ -5,7 +5,6 @@ import {TFHE, einput, ebool, euint64} from "fhevm/lib/TFHE.sol";
 import {IModularCompliance} from "../IModularCompliance.sol";
 import {IToken} from "../../../token/IToken.sol";
 import {AbstractModuleUpgradeable} from "./AbstractModuleUpgradeable.sol";
-import "hardhat/console.sol";
 
 contract SupplyLimitModule is AbstractModuleUpgradeable {
     /// supply limits array

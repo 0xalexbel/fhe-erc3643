@@ -1,7 +1,7 @@
 import hre from 'hardhat';
 import { expect } from 'chai';
 import { deployFactoryFixture } from '../fixtures';
-import { Gateway, Gateway__factory } from '../../../types';
+import { Gateway } from '../../../types';
 import {
   DeployContractOptions,
   HardhatEthersHelpers as HardhatEthersHelpersBase,

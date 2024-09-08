@@ -3,10 +3,14 @@ import {
   Identity,
   IdentityRegistry,
   IdentityRegistryStorage,
+  ITREXFactory,
+  ModularCompliance,
   SupplyLimitModule,
   SupplyLimitModule__factory,
   Token,
   Token__factory,
+  TokenProxy__factory,
+  TREXFactory,
 } from './artifacts';
 import { TxOptions } from './types';
 import { isDeployed, txWait, txWaitAndCatchError } from './utils';
@@ -14,9 +18,10 @@ import { IdentityRegistryAPI } from './IdentityRegistryAPI';
 import { ClaimTopicsRegistryAPI } from './ClaimTopicsRegistryAPI';
 import { IdentityAPI } from './IdentityAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
-import { FheERC3643Error } from './errors';
-import { getLogEventArgs } from '../test/utils';
+import { FheERC3643Error, throwIfNotOwner } from './errors';
 import { ChainConfig } from './ChainConfig';
+import { IdFactoryAPI } from './IdFactoryAPI';
+import { AgentRoleAPI } from './AgentRoleAPI';
 
 export class TokenAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): Token {
@@ -39,6 +44,65 @@ export class TokenAPI {
     }
 
     return contract.connect(runner);
+  }
+
+  /**
+   * token.owner == trexFactoryOwner
+   */
+  static async deployNew(
+    trexFactory: TREXFactory,
+    trexFactoryOwner: EthersT.Signer, // same as deploy suite. (onlyOwner)
+    trexIdFactoryOwner: EthersT.Signer,
+    identityRegistry: IdentityRegistry,
+    compliance: ModularCompliance,
+    trexFactorySalt: string,
+    tokenDetails: ITREXFactory.TokenDetailsStruct,
+    chainConfig: ChainConfig,
+    options: TxOptions,
+  ) {
+    // trexFactory.owner() === trexFactoryOwner
+    throwIfNotOwner('TREXFactory', chainConfig, trexFactory, trexFactoryOwner);
+    const trexImplementationAuthorityAddress = await trexFactory.connect(trexFactoryOwner).getImplementationAuthority();
+
+    const trexIdFactoryAddress = await trexFactory.connect(trexFactoryOwner).getIdFactory();
+    const trexIdFactory = await IdFactoryAPI.fromWithOwner(trexIdFactoryAddress, trexIdFactoryOwner);
+
+    const tokenFactory = new TokenProxy__factory().connect(trexFactoryOwner);
+    const proxy = await tokenFactory.deploy(
+      trexImplementationAuthorityAddress,
+      identityRegistry,
+      compliance,
+      tokenDetails.name,
+      tokenDetails.symbol,
+      tokenDetails.decimals,
+      tokenDetails.ONCHAINID,
+    );
+    await proxy.waitForDeployment();
+    const token = Token__factory.connect(await proxy.getAddress()).connect(trexFactoryOwner);
+
+    // token.owner() === trexFactoryOwner
+    throwIfNotOwner('Token', chainConfig, token, trexFactoryOwner);
+
+    const tokenIDAddress = EthersT.resolveAddress(tokenDetails.ONCHAINID);
+    if (tokenIDAddress === EthersT.ZeroAddress) {
+      await IdFactoryAPI.createTokenIdentity(
+        trexIdFactory.idFactory,
+        trexIdFactoryOwner,
+        token,
+        trexFactoryOwner,
+        tokenDetails.owner,
+        trexFactorySalt,
+        chainConfig,
+        options,
+      );
+    }
+
+    // From deployTREXSuite()
+    // AgentRole(address(ir)).addAgent(address(token));
+    const agentRole = await AgentRoleAPI.fromWithOwner(await identityRegistry.getAddress(), trexFactoryOwner);
+    await AgentRoleAPI.addAgent(agentRole, token, trexFactoryOwner, options);
+
+    return token;
   }
 
   /**
@@ -156,7 +220,7 @@ export class TokenAPI {
     identity: Identity,
     country: bigint,
     agent: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ): Promise<boolean> {
     // user cannot be zero
     const userAddress = EthersT.resolveAddress(user);
@@ -225,12 +289,6 @@ export class TokenAPI {
       ['mint(address,bytes32,bytes)'](userAddr, eamount, inputProof, { gasLimit: options?.gasLimit });
 
     const txReceipt = await txWaitAndCatchError(txPromise);
-
-    const args = getLogEventArgs(txReceipt, 'Transfer', undefined, token);
-    console.log(args);
-    const bbbb = await chainConfig.decrypt64(args[2]);
-    console.log(bbbb);
-
     return txReceipt;
   }
 
@@ -350,22 +408,5 @@ export class TokenAPI {
       m.push(SupplyLimitModule__factory.connect(await modules[i].getAddress(), runner));
     }
     return m;
-  }
-
-  static async setSupplyLimit(token: Token, options?: TxOptions) {
-    //ModularComplianceAPI;
-    //const m = await TokenAPI.getSupplyLimitModules(token, )
-    // const encAmount = await encrypt64(context.suite.complianceModule, context.suite.compliance, 100);
-    // console.log('compliance=' + (await context.suite.compliance.getAddress()));
-    // console.log('module=' + (await context.suite.complianceModule.getAddress()));
-    // // within setSupplyLimit running code msg.sender === context.suite.compliance
-    // const tx = await context.suite.compliance.callModuleFunction(
-    //   new EthersT.Interface(['function setSupplyLimit(bytes32,bytes)']).encodeFunctionData('setSupplyLimit', [
-    //     encAmount.handles[0],
-    //     encAmount.inputProof,
-    //   ]),
-    //   context.suite.complianceModule,
-    // );
-    // await tx.wait(1);
   }
 }

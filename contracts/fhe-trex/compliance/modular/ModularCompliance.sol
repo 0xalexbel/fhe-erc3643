@@ -7,7 +7,6 @@ import {IToken} from "../../token/IToken.sol";
 import {IModularCompliance} from "./IModularCompliance.sol";
 import {MCStorage} from "./MCStorage.sol";
 import {IModule} from "./modules/IModule.sol";
-import "hardhat/console.sol";
 
 contract ModularCompliance is IModularCompliance, OwnableUpgradeable, MCStorage {
     /// modifiers

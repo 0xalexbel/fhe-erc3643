@@ -8,7 +8,6 @@ import {IIdentityRegistry} from "../registry/interfaces/IIdentityRegistry.sol";
 import {IModularCompliance} from "../compliance/modular/IModularCompliance.sol";
 import {TokenStorage} from "./TokenStorage.sol";
 import {AgentRoleUpgradeable} from "../roles/AgentRoleUpgradeable.sol";
-//import "hardhat/console.sol";
 
 contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
     /// modifiers
@@ -1071,8 +1070,6 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         TFHE.allow(newBalanceTo, _to);
         //allowAgents(newBalanceTo);
 
-        //console.log("TRANSFER");
-
         // _balances[_from] = _balances[_from] - _amount;
         // _balances[_to] = _balances[_to] + _amount;
         emit Transfer(_from, _to, _eamount);
@@ -1115,12 +1112,6 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
         TFHE.allow(_totalSupply, address(this));
         TFHE.allow(_totalSupply, address(_tokenCompliance)); // give TFHE access to compliance
 
-        // console.log(
-        //     "MINT tokenCompliance=%s allowed=%s handle=%s",
-        //     address(_tokenCompliance),
-        //     TFHE.isAllowed(_totalSupply, address(_tokenCompliance)),
-        //     euint64.unwrap(_totalSupply)
-        // );
         // TFHE.allow(_totalSupply, msg.sender); //agent
         // allowAgents(_totalSupply); //allow other agents
 

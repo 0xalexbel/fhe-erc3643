@@ -42,10 +42,21 @@ export async function cmdTREXNewFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const N_MODULES = 3;
+export function cmdTREXSetupTxOptions() {
+  return defaultTxOptions(37 + 3);
+}
 
-export async function cmdTREXSetup(chainConfig: ChainConfig, options?: TxOptions) {
-  options = options ?? defaultTxOptions(37 + N_MODULES);
+export async function cmdTREXSetup(chainConfig: ChainConfig, mint: bigint, unpause: boolean, options?: TxOptions) {
+  options = options ?? cmdTREXSetupTxOptions();
+
+  if (options.progress) {
+    if (mint > 0n) {
+      options.progress.stepCount += 5;
+    }
+    if (unpause) {
+      options.progress.stepCount += 1;
+    }
+  }
 
   const trexFactoryOwnerWalletAlias = 'admin';
   const fooUniversityWalletAlias = 'foo-university';
@@ -53,6 +64,7 @@ export async function cmdTREXSetup(chainConfig: ChainConfig, options?: TxOptions
   const tokenOwnerWalletAlias = 'super-bank'; // = 'token-owner'
   const tokenIRAgentWalletAlias = 'super-bank'; // = 'token-owner' could be 'token-agent'
   const tokenIROwnerWalletAlias = 'super-bank'; // = 'token-owner' could be 'token-agent'
+  const tokenAgentWalletAlias = 'token-agent';
   const diplomaTopic = 10101010000042n;
   const nameTopic = 10101000100006n;
 
@@ -140,7 +152,7 @@ export async function cmdTREXSetup(chainConfig: ChainConfig, options?: TxOptions
   await cmdAddAgent(tokenIRAgentWalletAlias, tokenResult.ir, tokenIROwnerWalletAlias, chainConfig, options);
 
   // Add 'token-agent' as token agent
-  await cmdAddAgent('token-agent', tokenResult.token, tokenOwnerWalletAlias, chainConfig, options);
+  await cmdAddAgent(tokenAgentWalletAlias, tokenResult.token, tokenOwnerWalletAlias, chainConfig, options);
 
   const users = [
     { wallet: 'alice', country: 1n },
@@ -173,7 +185,7 @@ export async function cmdTREXSetup(chainConfig: ChainConfig, options?: TxOptions
       fooUniversityClaimIssuer,
       chainConfig.getWalletFromName(fooUniversityWalletAlias, chainConfig.provider),
       identity,
-      EthersT.toUtf8Bytes(`${users[i]} is graduated from Foo University`),
+      EthersT.toUtf8Bytes(`${users[i].wallet} is graduated from Foo University`),
       diplomaTopic,
       1n,
     );
@@ -191,18 +203,19 @@ export async function cmdTREXSetup(chainConfig: ChainConfig, options?: TxOptions
       barGovernmentClaimIssuer,
       chainConfig.getWalletFromName('bar-government', chainConfig.provider),
       identity,
-      EthersT.toUtf8Bytes(`${users[i]}`),
+      EthersT.toUtf8Bytes(`${users[i].wallet}`), //use wallet name as name
       nameTopic,
       1n,
     );
 
     // add Bar government name claim to user identity
-    const nameClaimId = await IdentityAPI.addClaim(identity, nameClaim, '', userWallet);
+    const nameClaimId = await IdentityAPI.addClaim(identity, nameClaim, '', userWallet, options);
 
     logStepOK(`Bar government name claim was successfully added to ${users[i].wallet} with id ${nameClaimId}`, options);
   }
 
   const token = TokenAPI.from(tokenResult.token);
+
   await deployModuleImplementations(
     token,
     tokenOwnerWallet,
@@ -211,6 +224,24 @@ export async function cmdTREXSetup(chainConfig: ChainConfig, options?: TxOptions
     chainConfig,
     options,
   );
+
+  const tokenAgentWallet = chainConfig.getWalletFromName(tokenAgentWalletAlias, chainConfig.provider);
+
+  if (mint !== 0n) {
+    for (let i = 0; i < users.length; ++i) {
+      const userWallet = chainConfig.getWalletFromName(users[i].wallet, chainConfig.provider);
+      const enc = await chainConfig.encrypt64(token, userWallet, mint);
+      await TokenAPI.mint(token, userWallet, enc.handles[0], enc.inputProof, tokenAgentWallet, chainConfig, options);
+
+      logStepOK(`Minted ${mint} tokens to '${users[i].wallet}'`, options);
+    }
+  }
+
+  if (unpause) {
+    await TokenAPI.unpause(token, tokenAgentWallet, options);
+
+    logStepOK(`Token ${tokenResult.token} is unpaused`, options);
+  }
 
   return {
     tokenAddress: tokenResult.token,
@@ -223,14 +254,14 @@ async function deployModuleImplementations(
   complianceOwnerWallet: EthersT.Signer,
   moduleImplOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
   const compliance = await TokenAPI.complianceWithOwner(token, tokenOwnerWallet);
 
   const moduleImplOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(moduleImplOwnerWalletAlias);
 
   // Setup a large limit
-  const supplyLimitModule = await SupplyLimitModuleAPI.deployNew(
+  /* const supplyLimitModule = */ await SupplyLimitModuleAPI.deployNew(
     moduleImplOwnerWallet,
     compliance,
     complianceOwnerWallet,
@@ -239,12 +270,8 @@ async function deployModuleImplementations(
     options,
   );
 
-  if (options?.progress) {
-    options.progress.contractDeployed('SupplyLimitModule', await supplyLimitModule.getAddress());
-  }
-
   // Must allow everybody
-  const transferRestrictModule = await TransferRestrictModuleAPI.deployNew(
+  /* const transferRestrictModule = */ await TransferRestrictModuleAPI.deployNew(
     moduleImplOwnerWallet,
     compliance,
     complianceOwnerWallet,
@@ -253,20 +280,12 @@ async function deployModuleImplementations(
     options,
   );
 
-  if (options?.progress) {
-    options.progress.contractDeployed('TransferRestrictModule', await transferRestrictModule.getAddress());
-  }
-
   // No restriction
-  const timeExchangeLimitsModule = await TimeExchangeLimitsModuleAPI.deployNew(
+  /* const timeExchangeLimitsModule = */ await TimeExchangeLimitsModuleAPI.deployNew(
     moduleImplOwnerWallet,
     compliance,
     complianceOwnerWallet,
     chainConfig,
     options,
   );
-
-  if (options?.progress) {
-    options.progress.contractDeployed('TimeExchangeLimitsModule', await timeExchangeLimitsModule.getAddress());
-  }
 }

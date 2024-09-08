@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 import {TFHE, euint64, ebool} from "fhevm/lib/TFHE.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Roles} from "./Roles.sol";
-import "hardhat/console.sol";
 
 contract AgentRoleUpgradeable is OwnableUpgradeable {
     using Roles for Roles.Role;
@@ -36,14 +35,10 @@ contract AgentRoleUpgradeable is OwnableUpgradeable {
     }
 
     function allowAgents(euint64 value) public onlyAgent {
-        // console.log("alloAgents= %s count=%s", msg.sender, _agents.bearers.length);
-        // console.log("value=%s isSenderAllowed=%s", euint64.unwrap(value), TFHE.isSenderAllowed(value));
-
         require(TFHE.isSenderAllowed(value), "TFHE: agent does not have TFHE permissions to allow other agents");
         for (uint256 i = 0; i < _agents.bearers.length; ++i) {
             address b = _agents.bearers[i];
             if (b != msg.sender) {
-                //console.log("  TFHE.allow(%s) %s/%s", _agents.bearers[i], i, _agents.bearers.length);
                 TFHE.allow(value, _agents.bearers[i]);
             }
         }

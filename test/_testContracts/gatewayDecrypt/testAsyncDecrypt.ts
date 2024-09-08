@@ -135,8 +135,6 @@ describe('TestAsyncDecrypt', function () {
   });
 
   it('test async decrypt uint64 non-trivial', async function () {
-    // console.log(instances.alice)
-    // console.log(instances.alice.address)
     const inputAlice = instances.alice.createEncryptedInput(contractAddress, signers.alice.address);
     inputAlice.add64(18446744073709550042n);
     const encryptedAmount = inputAlice.encrypt();

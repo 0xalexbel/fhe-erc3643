@@ -5,6 +5,8 @@ import { getContractOwner } from './utils';
 import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
 import { FheERC3643Error, FheERC3643InternalError } from '../sdk/errors';
 import { logError } from './log';
+import type { HardhatFhevmRuntimeEnvironment as HardhatFhevmRuntimeEnvironmentType } from 'hardhat-fhevm/dist/src/common/HardhatFhevmRuntimeEnvironment';
+import type { HardhatFhevmInstance as HardhatFhevmInstanceType } from 'hardhat-fhevm';
 
 export type ChainConfigJSON = {
   chain: {
@@ -19,6 +21,37 @@ export type ChainConfigJSON = {
   claimIssuers: string[];
 };
 
+// export type MyHRE = {
+//   fhevm: {
+//     decrypt64: (handle: bigint) => Promise<bigint>;
+//     createEncryptedInput: (contract: EthersT.AddressLike, user: EthersT.AddressLike) => FhevmZKInputType;
+//   };
+// };
+
+// export type FhevmZKInputType = {
+//   add64: (value: number | bigint) => FhevmZKInputType;
+//   encrypt: () => {
+//     handles: Uint8Array[];
+//     inputProof: Uint8Array;
+//   };
+// };
+
+// export type MyFhevmInstanceType = {
+//   createEncryptedInput: (contractAddress: string, userAddress: string) => any;
+//   generateKeypair: () => { publicKey: string; privateKey: string };
+//   createEIP712: (publicKey: string, contractAddress: string, userAddress?: string) => any;
+//   reencrypt: (
+//     handle: bigint,
+//     privateKey: string,
+//     publicKey: string,
+//     signature: string,
+//     contractAddress: string,
+//     userAddress: string,
+//   ) => Promise<bigint>;
+//   getPublicKey: () => string | null;
+// };
+
+//public createEncryptedInput(contractAddress: string, userAddress: string): HardhatFhevmZKInput {
 export type CryptEngineConfig = {
   decrypt64: ((handle: bigint) => Promise<bigint>) | undefined;
   encrypt64: (
@@ -73,14 +106,21 @@ export class ChainConfig {
   private _tokens: Array<string>;
   private _claimIssuers: Array<string>;
   private _cryptEngine: CryptEngineConfig | undefined;
+  private _fhevm: HardhatFhevmRuntimeEnvironmentType;
+  private _fhevmInstance: HardhatFhevmInstanceType | undefined;
 
-  constructor(config: ChainNetworkConfig | undefined, path: string | undefined) {
+  constructor(
+    config: ChainNetworkConfig | undefined,
+    path: string | undefined,
+    fhevm: HardhatFhevmRuntimeEnvironmentType,
+  ) {
     const url = config?.url ?? 'http://localhost:8545';
     const chainId = config?.chainId ?? 9000;
     const name = config?.name ?? 'fhevm';
     const mnemonic = config?.accounts.mnemonic ?? 'test test test test test test test test test test test junk';
     const walletPath = config?.accounts.path ?? "m/44'/60'/0'/0";
 
+    this._fhevm = fhevm;
     this._chainId = chainId;
     this._network = name;
     this._hardhatProvider = config?.hardhatProvider;
@@ -110,8 +150,9 @@ export class ChainConfig {
   public static async load(
     config: ChainNetworkConfig | undefined,
     historyPath: string | undefined,
+    fhevm: HardhatFhevmRuntimeEnvironmentType,
   ): Promise<ChainConfig> {
-    const c = new ChainConfig(config, historyPath);
+    const c = new ChainConfig(config, historyPath, fhevm);
 
     if (c._historyPath && fs.existsSync(c._historyPath)) {
       const h = (await this._readDeployHistoryFile(c._historyPath)) as ChainConfigJSON;
@@ -393,21 +434,52 @@ export class ChainConfig {
   }
 
   async decrypt64(handle: EthersT.BigNumberish | Uint8Array): Promise<bigint> {
-    if (!this._cryptEngine || !this._cryptEngine.decrypt64) {
-      throw new FheERC3643Error(`Chain config does not support FHEVM handle decryption`);
-    }
+    // if (!this._cryptEngine || !this._cryptEngine.decrypt64) {
+    //   throw new FheERC3643Error(`Chain config does not support FHEVM handle decryption`);
+    // }
+    // const bn = EthersT.toBigInt(handle);
+    // if (bn === 0n) {
+    //   return 0n;
+    // }
+    // return await this._cryptEngine.decrypt64(bn);
+
     const bn = EthersT.toBigInt(handle);
     if (bn === 0n) {
       return 0n;
     }
-    return await this._cryptEngine.decrypt64(bn);
+
+    const clear = await this._fhevm.decrypt64(bn);
+    return clear;
   }
 
   async encrypt64(contract: EthersT.AddressLike, user: EthersT.AddressLike, value: number | bigint) {
-    if (!this._cryptEngine || !this._cryptEngine.encrypt64) {
-      throw new FheERC3643Error(`Chain config does not support FHEVM handle encryption`);
+    if (typeof value !== 'number' && typeof value !== 'bigint') {
+      throw new FheERC3643Error('Invalid value to encrypt type= ' + typeof value);
     }
+    // if (!this._cryptEngine || !this._cryptEngine.encrypt64) {
+    //   throw new FheERC3643Error(`Chain config does not support FHEVM handle encryption`);
+    // }
 
-    return this._cryptEngine.encrypt64(contract, user, value);
+    if (this._fhevmInstance === undefined) {
+      this._fhevmInstance = await this._fhevm.createInstance();
+    }
+    const contractAddr = await EthersT.resolveAddress(contract);
+    const userAddr = await EthersT.resolveAddress(user);
+    const input = this._fhevmInstance.createEncryptedInput(contractAddr, userAddr);
+    input.add64(value);
+    return input.encrypt();
+
+    //return this._cryptEngine.encrypt64(contract, user, value);
   }
+
+  /*
+  //0x092e3462d81a26fb16296badcec4bf674b801f0b1552ac3a39d061c8a8322def
+          const instance = await hre.fhevm.createInstance();
+          const contractAddr = await hre.ethers.resolveAddress(contract);
+          const userAddr = await hre.ethers.resolveAddress(user);
+          const input = instance.createEncryptedInput(contractAddr, userAddr);
+          input.add64(value);
+          return input.encrypt();
+
+  */
 }

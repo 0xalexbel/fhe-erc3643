@@ -34,7 +34,7 @@ export class AgentRoleAPI {
     agentRole: AgentRole,
     newAgent: EthersT.AddressLike,
     owner: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     if (await agentRole.connect(owner).isAgent(newAgent)) {
       return;
@@ -49,7 +49,7 @@ export class AgentRoleAPI {
     agentRole: AgentRole,
     newAgent: EthersT.AddressLike,
     owner: EthersT.Signer,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     if (!(await agentRole.connect(owner).isAgent(newAgent))) {
       return;

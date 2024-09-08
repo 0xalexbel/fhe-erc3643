@@ -576,7 +576,6 @@ export async function deploySuiteWithModularCompliancesFixture() {
   await complianceProxy.waitForDeployment();
 
   const compliance: ModularCompliance = await hre.ethers.getContractAt('ModularCompliance', complianceProxy);
-  console.log(`compliance=${await compliance.getAddress()}`);
   const complianceBeta = await hre.ethers.deployContract('ModularCompliance');
   await complianceBeta.waitForDeployment();
 

@@ -3,10 +3,10 @@ import { TxOptions } from './types';
 
 export async function txWait(
   promise: Promise<EthersT.ContractTransactionResponse>,
-  options?: TxOptions,
+  options: TxOptions,
 ): Promise<EthersT.ContractTransactionReceipt | null> {
   const tx = await promise;
-  const confirms = options?.confirms;
+  const confirms = options.confirms;
 
   if (confirms) {
     return await tx.wait(confirms);
@@ -111,7 +111,7 @@ export async function isDeployed(provider: EthersT.Provider, address: string | u
       return address;
     }
     return undefined;
-  } catch (e) {
+  } catch {
     // no network connection ?
     return undefined;
   }

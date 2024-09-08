@@ -2,3 +2,6 @@
 artifacts/
 node_modules/
 legacy/
+tmp/
+hh_fhevm/
+cache/

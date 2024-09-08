@@ -1,4 +1,3 @@
-import '../../../tasks/aa';
 import '../../../tasks/index';
 import { assert, expect } from 'chai';
 import hre, { fhevm, ethers } from 'hardhat';
@@ -94,39 +93,32 @@ async function tokenTransferFrom(
 }
 
 describe('Token - Transfers', () => {
-  // describe('Dummy', () => {
-  //   it('Dummy', async () => {
-  //     const { token } = (await hre.run({ scope: 'trex2', task: 'setup2' })) as { token: string };
-
-  //     // const beforeBalance = await hre.run({ scope: 'token', task: 'balance' }, { token, user: 'alice' });
-
-  //     // console.log('MINT');
-  //     // await hre.run({ scope: 'token', task: 'mint' }, { token, user: 'alice', agent: 'token-agent', amount: 10n });
-  //     // console.log('DONE');
-  //     const afterBalance = await hre.run({ scope: 'token', task: 'balance' }, { token, user: 'alice' });
-
-  //     //expect(afterBalance).to.eq(beforeBalance + 10n);
-  //   });
-  // });
-
   describe('cli mint', () => {
     it('should ', async () => {
       // setup TREX token
-      const { token } = (await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP })) as { token: string };
+      const { tokenAddress } = (await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP })) as {
+        tokenAddress: string;
+      };
 
       // get user balance
-      const beforeBalance = await hre.run({ scope: SCOPE_TOKEN, task: SCOPE_TOKEN_BALANCE }, { token, user: 'alice' });
+      const beforeBalance = await hre.run(
+        { scope: SCOPE_TOKEN, task: SCOPE_TOKEN_BALANCE },
+        { token: tokenAddress, user: 'alice' },
+      );
 
       // mint
       await hre.run(
         { scope: SCOPE_TOKEN, task: SCOPE_TOKEN_MINT },
-        { token, user: 'alice', agent: 'token-agent', amount: 10n },
+        { token: tokenAddress, user: 'alice', agent: 'token-agent', amount: 10n },
       );
 
       // get new user balance
-      const afterBalance = await hre.run({ scope: SCOPE_TOKEN, task: SCOPE_TOKEN_BALANCE }, { token, user: 'alice' });
+      const afterBalance = await hre.run(
+        { scope: SCOPE_TOKEN, task: SCOPE_TOKEN_BALANCE },
+        { token: tokenAddress, user: 'alice' },
+      );
 
-      expect(afterBalance).to.eq(beforeBalance + 10n);
+      expect(afterBalance.value).to.eq(beforeBalance.value + 10n);
     });
   });
 
@@ -307,7 +299,7 @@ describe('Token - Transfers', () => {
         expect(newAliceBalance).to.equal(aliceBalance);
       });
 
-      it('CCCC nothing should happen', async () => {
+      it('nothing should happen', async () => {
         const {
           suite: { token },
           accounts: { aliceWallet, bobWallet, tokenAgent },

@@ -52,7 +52,7 @@ describe('TREXGateway', () => {
           expect(await gateway.getFactory()).to.equal(hre.ethers.ZeroAddress);
 
           const tx = await gateway.setFactory(context.factories.trexFactory);
-          expect(tx).to.emit(gateway, 'FactorySet');
+          await expect(tx).to.emit(gateway, 'FactorySet');
           expect(await gateway.getFactory()).to.equal(context.factories.trexFactory);
         });
       });

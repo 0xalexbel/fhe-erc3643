@@ -48,11 +48,11 @@ export class SupplyLimitModuleAPI {
     complianceOwner: EthersT.Signer,
     initialLimit: bigint,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const imodule = await ModuleAPI.deployNew('SupplyLimitModule', moduleImplementationOwner);
     const supplyLimitModule = SupplyLimitModuleAPI.from(await imodule.getAddress(), chainConfig.provider);
-    await ModularComplianceAPI.addModule(compliance, supplyLimitModule, complianceOwner);
+    await ModularComplianceAPI.addModule(compliance, supplyLimitModule, complianceOwner, options);
     if (options?.progress) {
       options.progress.contractDeployed('SupplyLimitModule', await supplyLimitModule.getAddress());
     }
@@ -84,7 +84,7 @@ export class SupplyLimitModuleAPI {
     amount: bigint,
     signer: EthersT.Signer,
     chainConfig: ChainConfig,
-    options?: TxOptions,
+    options: TxOptions,
   ) {
     const encAmount = await chainConfig.encrypt64(module, compliance, amount);
 
@@ -98,6 +98,7 @@ export class SupplyLimitModuleAPI {
           ]),
           module,
         ),
+      options,
     );
 
     const args = getLogEventArgs(txReceipt, 'SupplyLimitSet', undefined, module);
@@ -110,10 +111,5 @@ export class SupplyLimitModuleAPI {
     if (args[1] !== EthersT.toBigInt(encAmount.handles[0])) {
       throw new FheERC3643Error(`Failed to set the supply limit`);
     }
-
-    logStepMsg(
-      `Module supply limit is now set to ${amount} (module address: ${await module.getAddress()})...`,
-      options,
-    );
   }
 }

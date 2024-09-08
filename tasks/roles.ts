@@ -1,10 +1,8 @@
 import { scope } from 'hardhat/config';
-import { ethers as EthersT } from 'ethers';
 import { string } from 'hardhat/internal/core/params/argumentTypes';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { loadChainConfig } from './utils';
-import { SCOPE_ROLES, SCOPE_ROLES_ADD_AGENT, SCOPE_TREX, SCOPE_TREX_NEW_FACTORY, SCOPE_TREX_SETUP } from './task-names';
-import { logContractOwner, logDeployOK, logInfo, logMsg, logOK } from '../sdk/log';
+import { SCOPE_ROLES, SCOPE_ROLES_ADD_AGENT } from './task-names';
 import { importCliModule } from './internal/imp';
 
 const rolesScope = scope(SCOPE_ROLES, 'Manage roles');

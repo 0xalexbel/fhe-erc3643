@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 
 import {TFHE, euint64, einput, ebool} from "fhevm/lib/TFHE.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "hardhat/console.sol";
 
 contract EncryptedERC20 is Ownable2Step {
     event Transfer(address indexed from, address indexed to);
@@ -132,8 +131,6 @@ contract EncryptedERC20 is Ownable2Step {
 
     function _updateAllowance(address owner, address spender, euint64 amount) internal virtual returns (ebool) {
         require(TFHE.isSenderAllowed(amount), "??? JE PIGE PAS");
-        console.log("Encryp.sol msg.sender=%s", msg.sender);
-        console.log("Encryp.sol address(this)=%s", address(this));
         //require(TFHE.isSenderAllowed(_balances[owner]), "Is SPENDER");
         euint64 currentAllowance = _allowance(owner, spender);
         // makes sure the allowance suffices

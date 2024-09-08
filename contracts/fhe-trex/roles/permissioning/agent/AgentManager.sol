@@ -7,7 +7,6 @@ import {IIdentity} from "../../../../identity/interfaces/IIdentity.sol";
 import {IToken} from "../../../token/IToken.sol";
 import {IIdentityRegistry} from "../../../registry/interfaces/IIdentityRegistry.sol";
 import {AgentRoles} from "./AgentRoles.sol";
-import "hardhat/console.sol";
 
 contract AgentManager is AgentRoles {
     /// @dev the token managed by this AgentManager contract

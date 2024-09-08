@@ -1,10 +1,17 @@
 import { ethers as EthersT } from 'ethers';
-import { IdFactory, IdFactory__factory, ImplementationAuthority, ImplementationAuthority__factory } from './artifacts';
+import {
+  IdFactory,
+  IdFactory__factory,
+  ImplementationAuthority,
+  ImplementationAuthority__factory,
+  Token,
+} from './artifacts';
 import { TxOptions } from './types';
 import { IdentityImplementationAuthorityAPI } from './IdentityImplementationAuthorityAPI';
-import { isDeployed } from './utils';
-import { FheERC3643Error, FheERC3643InternalError } from './errors';
+import { isDeployed, txWait } from './utils';
+import { FheERC3643Error, FheERC3643InternalError, throwIfInvalidAddress, throwIfNotOwner } from './errors';
 import { ChainConfig } from './ChainConfig';
+import { getLogEventArgs } from '../test/utils';
 
 export class IdFactoryAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): IdFactory {
@@ -46,6 +53,43 @@ export class IdFactoryAPI {
       chainConfig,
       options,
     );
+  }
+
+  static async createTokenIdentity(
+    idFactory: IdFactory,
+    idFactoryOwner: EthersT.Signer,
+    token: Token,
+    currentTokenOwner: EthersT.Signer,
+    futureTokenOwner: EthersT.AddressLike,
+    futureTokenSalt: string,
+    chainConfig: ChainConfig,
+    options: TxOptions,
+  ) {
+    throwIfNotOwner('IdFactory', chainConfig, idFactory, idFactoryOwner);
+
+    let txReceipt = await txWait(
+      idFactory
+        .connect(idFactoryOwner)
+        .createTokenIdentity(token, futureTokenOwner, futureTokenSalt, { gasLimit: options?.gasLimit }),
+      options,
+    );
+    let args = getLogEventArgs(txReceipt, 'TokenLinked', undefined, idFactory);
+    if (args.length !== 2 || args[0] !== (await token.getAddress())) {
+      throw new FheERC3643Error(`Create token identity failed`);
+    }
+    const tokenIDAddress = args[1];
+    throwIfInvalidAddress(tokenIDAddress);
+
+    txReceipt = await txWait(
+      token.connect(currentTokenOwner).setOnchainID(tokenIDAddress, { gasLimit: options?.gasLimit }),
+      options,
+    );
+
+    //emit UpdatedTokenInformation(_tokenName, _tokenSymbol, _tokenDecimals, _TOKEN_VERSION, _tokenOnchainID);
+    args = getLogEventArgs(txReceipt, 'UpdatedTokenInformation', undefined, token);
+    if (args.length !== 5 || args[4] !== tokenIDAddress) {
+      throw new FheERC3643Error(`Create token identity failed`);
+    }
   }
 
   static async fromWithOwner(address: string, owner: EthersT.Signer) {

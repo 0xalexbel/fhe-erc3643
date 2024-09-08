@@ -75,6 +75,7 @@ export async function encrypt64Array(
   return input.encrypt();
 }
 
+/* eslint-disable no-unexpected-multiline */
 export async function tokenTransferTxPromise(
   token: Token,
   signer: EthersT.Signer,
@@ -97,6 +98,7 @@ export async function tokenTransfer(
   return await tx.wait(1);
 }
 
+/* eslint-disable no-unexpected-multiline */
 export async function tokenMintTxPromise(
   token: Token,
   signer: EthersT.Signer,
@@ -109,6 +111,7 @@ export async function tokenMintTxPromise(
     ['mint(address,bytes32,bytes)'](to, signerEncAmount.handles[0], signerEncAmount.inputProof);
 }
 
+/* eslint-disable no-unexpected-multiline */
 export async function tokenBatchMintTxPromise(
   token: Token,
   signer: EthersT.Signer,
@@ -154,6 +157,7 @@ export async function tokenFreeze(
   return await tx.wait(1);
 }
 
+/* eslint-disable no-unexpected-multiline */
 export async function tokenUnfreeze(
   token: Token,
   signer: EthersT.Signer,
@@ -178,6 +182,7 @@ export async function tokenTotalSupply(token: Token) {
   return await hre.fhevm.decrypt64(enc);
 }
 
+/* eslint-disable no-unexpected-multiline */
 export async function tokenBurn(
   token: Token,
   signer: EthersT.Signer,
@@ -199,10 +204,11 @@ export function getLogEventArgs(
   contract?: EthersT.BaseContract,
 ) {
   expect(txReceipt).not.to.be.null;
+  assert(txReceipt);
   if (contract) {
-    txReceipt = new EthersT.ContractTransactionReceipt(contract.interface, txReceipt!.provider, txReceipt!);
+    txReceipt = new EthersT.ContractTransactionReceipt(contract.interface, txReceipt.provider, txReceipt);
   }
-  const log = txReceipt!.logs.find(log => 'eventName' in log && log.eventName === eventName);
+  const log = txReceipt.logs.find(log => 'eventName' in log && log.eventName === eventName);
   assert(log, `No event named '${eventName}'`);
   assert('args' in log);
   assert(count === undefined || log.args.length === count);
@@ -237,12 +243,13 @@ export function getAllLogEventArgs(
   contract?: EthersT.BaseContract,
 ) {
   expect(txReceipt).not.to.be.null;
+  assert(txReceipt);
   if (contract) {
-    txReceipt = new EthersT.ContractTransactionReceipt(contract.interface, txReceipt!.provider, txReceipt!);
+    txReceipt = new EthersT.ContractTransactionReceipt(contract.interface, txReceipt.provider, txReceipt);
   }
 
   const allArgs: EthersT.Result[] = [];
-  txReceipt!.logs.forEach(log => {
+  txReceipt.logs.forEach(log => {
     if ('eventName' in log && log.eventName === eventName) {
       allArgs.push(log.args);
     }

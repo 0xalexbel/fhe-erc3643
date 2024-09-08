@@ -69,6 +69,7 @@ export async function loadChainConfig(hre: HardhatRuntimeEnvironment) {
       hardhatProvider: hre.network.name === 'hardhat' ? hre.ethers.provider : undefined,
     },
     historyPath,
+    hre.fhevm,
   );
 
   return chainConfig;
