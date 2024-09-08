@@ -34,7 +34,7 @@ jobs:
       #     echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
       - name: 'Test fhevm in mock mode'
-        run: ./tests.sh
+        run: npm test
 
       - name: 'Add test summary'
         run: |
