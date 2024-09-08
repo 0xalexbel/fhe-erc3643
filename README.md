@@ -48,6 +48,14 @@ npx hardhat --network fhevm trex setup --mint 100 --unpause
 npx hardhat --network fhevm token mint --token <token address> --agent "token-agent" --user alice --amount 10n
 ```
 
+3. Predefined wallets and aliases
+
+Instead of using addresses you can execute CLI commands using wallet aliases. Note that the deployed token address is still required in hex format. See table below for the list of aliases.
+
+```bash
+npx hardhat --network fhevm token mint --token <token address> --agent "token-agent" --user alice --amount 10n
+```
+
 # The CLI
 
 `TREX` setup commands
@@ -64,7 +72,9 @@ npx hardhat token --help
 
 # The `hardhat-fhevm` npm package
 
-fhe-erc3643 uses the `hardhat-fhevm` npm package, an easy to use set of commands to develop solidity contracts on top of Zama's FHEVM. 
+fhe-erc3643 uses the `hardhat-fhevm` hardhat plugin, which offers a set of hardhat tasks to develop solidity contracts on top of Zama's FHEVM. 
+It supports both the mock and local node modes.
+
 - NPM: https://www.npmjs.com/package/hardhat-fhevm
 - Git: https://github.com/0xalexbel/hardhat-fhevm
 
