@@ -77,6 +77,8 @@ npx hardhat --network fhevm token mint --token <token address> --agent "token-ag
 
 # Example interacting  with the `ExchangeMonthlyLimitsModule` compliance module
 
+The following interaction is fully FHE compliant (from start to finish).
+
 ```bash
 # setup the TREX environment
 npx hardhat --network fhevm trex setup --mint 1000 --unpause
@@ -113,3 +115,11 @@ It supports both the mock and local node modes.
 |  👱🏼‍♂️ david  |  8 | david  | token holder  | has an identity stored in the token's Identity registry |
 |  👩 eve  |  9 | eve  | token holder  | has an identity stored in the token's Identity registry |
 |  🦈 MEGALODON  |  _ | _  | TREX token  | the deployed TREX token |
+
+# Limitations:
+
+- For debugging reasons, all events are also emitting the encrypted handles. This should be removed if necessary.
+- `country` is still un-encrypted. (Future versions)
+- On the FHEVM node: Some tests are running when manually executed using the CLI while failing when run via Chai + Mocha
+- DVA has been ported but the corresponding CLI is not available
+- Some CLI commands are missing (transfer-from, etc.) 
