@@ -98,6 +98,30 @@ export async function tokenTransfer(
   return await tx.wait(1);
 }
 
+export async function expectTokenTransferToEq(
+  token: Token,
+  signer: EthersT.Signer,
+  to: EthersT.AddressLike,
+  amount: number | bigint,
+  expectedAmount: number | bigint,
+) {
+  const fromAddress = await signer.getAddress();
+  const toAddress = await EthersT.resolveAddress(to);
+  const txReceipt = await tokenTransfer(token, signer, to, amount);
+  const args = getLogEventArgs(txReceipt, 'Transfer', undefined);
+  expect(args[0]).to.equal(fromAddress);
+  expect(args[1]).to.equal(toAddress);
+  if (args.length >= 3) {
+    const amount = await fhevm.decrypt64(args[2]);
+    expect(amount).to.equal(expectedAmount);
+  }
+}
+
+export async function expectTokenBalanceToEq(token: Token, user: EthersT.AddressLike, expectedAmount: number | bigint) {
+  const amount = await tokenBalanceOf(token, user);
+  expect(expectedAmount).to.equal(amount);
+}
+
 /* eslint-disable no-unexpected-multiline */
 export async function tokenMintTxPromise(
   token: Token,
@@ -173,6 +197,9 @@ export async function tokenUnfreeze(
 
 export async function tokenBalanceOf(token: Token, user: EthersT.AddressLike) {
   const encBalance = await token.balanceOf(user);
+  if (encBalance === 0n) {
+    return 0n;
+  }
   const b = await hre.fhevm.decrypt64(encBalance);
   return b;
 }

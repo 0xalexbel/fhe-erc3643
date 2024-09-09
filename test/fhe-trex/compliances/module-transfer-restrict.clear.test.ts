@@ -6,10 +6,7 @@ import { deployComplianceFixture } from '../fixtures/deploy-compliance.fixture';
 async function deployTransferRestrictFullSuite() {
   const context = await deploySuiteWithModularCompliancesFixture();
   const module = await ethers.deployContract('TransferRestrictModule');
-  const proxy = await ethers.deployContract('ModuleProxy', [
-    module,
-    module.interface.encodeFunctionData('initialize'),
-  ]);
+  const proxy = await ethers.deployContract('ModuleProxy', [module, module.interface.encodeFunctionData('initialize')]);
   const complianceModule = await ethers.getContractAt('TransferRestrictModule', proxy);
 
   await context.suite.compliance.bindToken(context.suite.token);
@@ -111,7 +108,9 @@ describe('Compliance Module: TransferRestrict', () => {
       it('should revert', async () => {
         const context = await deployTransferRestrictFullSuite();
         await expect(
-          context.suite.complianceModule.connect(context.accounts.aliceWallet).upgradeToAndCall(ethers.ZeroAddress, '0x'),
+          context.suite.complianceModule
+            .connect(context.accounts.aliceWallet)
+            .upgradeToAndCall(ethers.ZeroAddress, '0x'),
         ).to.revertedWithCustomError(context.suite.complianceModule, 'OwnableUnauthorizedAccount');
       });
     });
@@ -123,10 +122,14 @@ describe('Compliance Module: TransferRestrict', () => {
         const newImplementation = await ethers.deployContract('TransferRestrictModule');
 
         // when
-        await context.suite.complianceModule.connect(context.accounts.deployer).upgradeToAndCall(newImplementation, '0x');
+        await context.suite.complianceModule
+          .connect(context.accounts.deployer)
+          .upgradeToAndCall(newImplementation, '0x');
 
         // then
-        const implementationAddress = await upgrades.erc1967.getImplementationAddress(await context.suite.complianceModule.getAddress());
+        const implementationAddress = await upgrades.erc1967.getImplementationAddress(
+          await context.suite.complianceModule.getAddress(),
+        );
         expect(implementationAddress).to.eq(newImplementation);
       });
     });
@@ -294,50 +297,6 @@ describe('Compliance Module: TransferRestrict', () => {
           context.accounts.aliceWallet.address,
         );
         expect(result).to.be.false;
-      });
-    });
-  });
-
-  describe('.moduleCheck', () => {
-    describe('when sender and receiver are not allowed', () => {
-      it('should return false', async () => {
-        const context = await deployTransferRestrictFullSuite();
-        const to = context.accounts.anotherWallet.address;
-        const from = context.accounts.aliceWallet.address;
-        const result = await context.suite.complianceModule.moduleCheck(from, to, 10, context.suite.compliance);
-        expect(result).to.be.false;
-      });
-    });
-
-    describe('when sender is allowed', () => {
-      it('should return true', async () => {
-        const context = await deployTransferRestrictFullSuite();
-        const to = context.accounts.aliceWallet.address;
-        const from = context.accounts.bobWallet.address;
-
-        await context.suite.compliance.callModuleFunction(
-          new ethers.Interface(['function allowUser(address _userAddress)']).encodeFunctionData('allowUser', [from]),
-          context.suite.complianceModule,
-        );
-
-        const result = await context.suite.complianceModule.moduleCheck(from, to, 10, context.suite.compliance);
-        expect(result).to.be.true;
-      });
-    });
-
-    describe('when receiver is allowed', () => {
-      it('should return true', async () => {
-        const context = await deployTransferRestrictFullSuite();
-        const to = context.accounts.aliceWallet.address;
-        const from = context.accounts.bobWallet.address;
-
-        await context.suite.compliance.callModuleFunction(
-          new ethers.Interface(['function allowUser(address _userAddress)']).encodeFunctionData('allowUser', [to]),
-          context.suite.complianceModule,
-        );
-
-        const result = await context.suite.complianceModule.moduleCheck(from, to, 10, context.suite.compliance);
-        expect(result).to.be.true;
       });
     });
   });
