@@ -85,7 +85,7 @@ npx hardhat --network fhevm trex setup --mint 1000 --unpause
 # register bob'id as an exchanger 
 npx hardhat --network fhevm token exchangemonthly:add-id --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --owner token-owner --user bob
 # specify bob's limits
-npx hardhat --network fhevm token exchangemonthly:set-exchange-limit --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --agent token-owner --exchange-id bob --limit 100
+npx hardhat --network fhevm token exchangemonthly:set-exchange-limit --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --owner token-owner --exchange-id bob --limit 100
 # Alice transfers 10 tokens to bob
 npx hardhat --network fhevm token transfer --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --wallet alice --to bob --amount 10
 # Display bob's remaining credits
