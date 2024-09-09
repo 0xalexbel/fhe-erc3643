@@ -15,6 +15,7 @@ import { TokenAPI } from '../TokenAPI';
 import { SupplyLimitModuleAPI } from '../SupplyLimitModuleAPI';
 import { TransferRestrictModuleAPI } from '../TransferRestrictModuleAPI';
 import { TimeExchangeLimitsModuleAPI } from '../TimeExchangeLimitsModuleAPI';
+import { ExchangeMonthlyLimitsModuleAPI } from '../ExchangeMonthlyLimitsModuleAPI';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -326,6 +327,15 @@ async function deployModuleImplementations(
 
   // No restriction
   /* const timeExchangeLimitsModule = */ await TimeExchangeLimitsModuleAPI.deployNew(
+    moduleImplOwnerWallet,
+    compliance,
+    complianceOwnerWallet,
+    chainConfig,
+    options,
+  );
+
+  // No restriction
+  /* const exchangeMonthlyLimitsModule = */ await ExchangeMonthlyLimitsModuleAPI.deployNew(
     moduleImplOwnerWallet,
     compliance,
     complianceOwnerWallet,

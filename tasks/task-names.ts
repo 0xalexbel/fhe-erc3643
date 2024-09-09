@@ -49,6 +49,13 @@ export const SCOPE_TOKEN_TIME_EXCHANGE_REMOVE_ID = 'timeexchange:remove-id';
 export const SCOPE_TOKEN_TIME_EXCHANGE_SET_LIMITS = 'timeexchange:set-limits';
 export const SCOPE_TOKEN_TIME_EXCHANGE_GET_LIMITS = 'timeexchange:get-limits';
 
+// ExchangeMonthlyLimitsModule
+export const SCOPE_TOKEN_EXCHANGE_MONTHLY_ADD_ID = 'exchangemonthly:add-id';
+export const SCOPE_TOKEN_EXCHANGE_MONTHLY_IS_ID = 'exchangemonthly:is-id';
+export const SCOPE_TOKEN_EXCHANGE_MONTHLY_REMOVE_ID = 'exchangemonthly:remove-id';
+export const SCOPE_TOKEN_EXCHANGE_MONTHLY_GET_MONTHLY_COUNTER = 'exchangemonthly:get-monthly-counter';
+export const SCOPE_TOKEN_EXCHANGE_MONTHLY_SET_EXCHANGE_LIMIT = 'exchangemonthly:set-exchange-limit';
+
 // export const SCOPE_MODULE = 'module';
 // export const SCOPE_MODULE_NEW = 'new';
 // export const SCOPE_MODULE_SHOW = 'show';

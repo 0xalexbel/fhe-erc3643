@@ -31,24 +31,35 @@ npm run test
 npm run test:fhevm
 ```
 
-# How to use the FHE token manually
-
-1. Setup the FHE-TREX environment
+### Start/stop/restart a local fhevm node
 
 ```bash
-npx hardhat --network fhevm trex setup --mint 100 --unpause
+# starts a new local node (if not already running)
+npm run start
+```
+```bash
+# stops the running local node
+npm run stop
+```
+```bash
+# restart a running local node
+npm run restart
+```
+
+# How to use the FHE token manually
+
+### Setup a TREX token (slow)
+
+The new token address is displayed at the end of the deployment process.
+
+```bash
+npx hardhat --network fhevm trex setup --mint 1000 --unpause
 ```
 - --mint option to distribute tokens to all token holders (alice, bob, etc.)
 - --unpause option to activate the token
 - --help to list all the available commands (mint, burn, transfer, etc.)
 
-2. Use the token commands to play with the token
-
-```bash
-npx hardhat --network fhevm token mint --token <token address> --agent "token-agent" --user alice --amount 10n
-```
-
-3. Predefined wallets and aliases
+### Predefined wallets and aliases
 
 Instead of using addresses you can execute CLI commands using wallet aliases. Note that the deployed token address is still required in hex format. See table below for the list of aliases.
 
@@ -56,18 +67,27 @@ Instead of using addresses you can execute CLI commands using wallet aliases. No
 npx hardhat --network fhevm token mint --token <token address> --agent "token-agent" --user alice --amount 10n
 ```
 
-# The CLI
+### Interacting with the TREX token
 
-`TREX` setup commands
+Use the token commands to interact with the token
 
 ```bash
-npx hardhat trex --help
+npx hardhat --network fhevm token mint --token <token address> --agent "token-agent" --user alice --amount 10n
 ```
 
-`Token` related commands
+# Example interacting  with the `ExchangeMonthlyLimitsModule` compliance module
 
 ```bash
-npx hardhat token --help
+# setup the TREX environment
+npx hardhat --network fhevm trex setup --mint 1000 --unpause
+# register bob'id as an exchanger 
+npx hardhat --network fhevm token exchangemonthly:add-id --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --owner token-owner --user bob
+# specify bob's limits
+npx hardhat --network fhevm token exchangemonthly:set-exchange-limit --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --agent token-owner --exchange-id bob --limit 100
+# Alice transfers 10 tokens to bob
+npx hardhat --network fhevm token transfer --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --wallet alice --to bob --amount 10
+# Display bob's remaining credits
+npx hardhat --network fhevm token exchangemonthly:get-monthly-counter --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --exchange-id bob --investor-id alice --decrypt
 ```
 
 # The `hardhat-fhevm` npm package
@@ -77,7 +97,6 @@ It supports both the mock and local node modes.
 
 - NPM: https://www.npmjs.com/package/hardhat-fhevm
 - Git: https://github.com/0xalexbel/hardhat-fhevm
-
 
 ## The test wallets and roles
 

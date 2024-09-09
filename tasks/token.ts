@@ -8,6 +8,11 @@ import {
   SCOPE_TOKEN,
   SCOPE_TOKEN_BALANCE,
   SCOPE_TOKEN_BURN,
+  SCOPE_TOKEN_EXCHANGE_MONTHLY_ADD_ID,
+  SCOPE_TOKEN_EXCHANGE_MONTHLY_GET_MONTHLY_COUNTER,
+  SCOPE_TOKEN_EXCHANGE_MONTHLY_IS_ID,
+  SCOPE_TOKEN_EXCHANGE_MONTHLY_REMOVE_ID,
+  SCOPE_TOKEN_EXCHANGE_MONTHLY_SET_EXCHANGE_LIMIT,
   SCOPE_TOKEN_FREEZE,
   SCOPE_TOKEN_FROZEN_TOKENS,
   SCOPE_TOKEN_IS_PAUSED,
@@ -403,6 +408,126 @@ tokenScope
 
     return await cmds.cmdTokenTimeExchangeGetLimits(token, user, chainConfig, options);
   });
+
+////////////////////////////////////////////////////////////////////////////////
+
+tokenScope
+  .task(SCOPE_TOKEN_EXCHANGE_MONTHLY_IS_ID)
+  .setDescription('Checks if an identity is tagged as an exchange ID')
+  .addParam('token', 'Token address', undefined, string)
+  .addParam('user', 'The wallet index/alias associated to the identity being checked', undefined, string)
+  .setAction(async ({ token, user }: { token: string; user: string }, hre: HardhatRuntimeEnvironment) => {
+    const cmds = await importCliModule('exchangemonthly', hre);
+    const chainConfig = await loadChainConfig(hre);
+
+    const options = defaultTxOptions(1);
+    options.mute = true;
+
+    return await cmds.cmdTokenExchangeMonthlyIsId(token, user, chainConfig, options);
+  });
+
+tokenScope
+  .task(SCOPE_TOKEN_EXCHANGE_MONTHLY_ADD_ID)
+  .setDescription('Tags an identity as being an exchange ID (token owner only)')
+  .addParam('token', 'Token address', undefined, string)
+  .addParam('owner', 'The address or wallet index/alias of the token owner', undefined, string)
+  .addParam('user', 'The wallet index/alias associated to the identity to tag', undefined, string)
+  .setAction(
+    async ({ token, owner, user }: { token: string; owner: string; user: string }, hre: HardhatRuntimeEnvironment) => {
+      const cmds = await importCliModule('exchangemonthly', hre);
+      const chainConfig = await loadChainConfig(hre);
+
+      const options = defaultTxOptions(1);
+      options.mute = true;
+
+      return await cmds.cmdTokenExchangeMonthlyAddId(token, user, owner, chainConfig, options);
+    },
+  );
+
+tokenScope
+  .task(SCOPE_TOKEN_EXCHANGE_MONTHLY_REMOVE_ID)
+  .setDescription('Untags an identity as being an exchange ID (token owner only)')
+  .addParam('token', 'Token address', undefined, string)
+  .addParam('owner', 'The address or wallet index/alias of the token owner', undefined, string)
+  .addParam('user', 'The wallet index/alias associated to the identity to untag', undefined, string)
+  .setAction(
+    async ({ token, owner, user }: { token: string; owner: string; user: string }, hre: HardhatRuntimeEnvironment) => {
+      const cmds = await importCliModule('exchangemonthly', hre);
+      const chainConfig = await loadChainConfig(hre);
+
+      const options = defaultTxOptions(1);
+      options.mute = true;
+
+      return await cmds.cmdTokenExchangeMonthlyRemoveId(token, user, owner, chainConfig, options);
+    },
+  );
+
+tokenScope
+  .task(SCOPE_TOKEN_EXCHANGE_MONTHLY_GET_MONTHLY_COUNTER)
+  .setDescription('Gets the current monthly counter of investorID on exchangeID exchange')
+  .addParam('token', 'Token address', undefined, string)
+  .addParam('investorId', 'The address or wallet index/alias of the investor identity', undefined, string)
+  .addParam('exchangeId', 'The address or wallet index/alias of the exchange identity', undefined, string)
+  .addFlag('decrypt', 'Displays the decrypted value')
+  .setAction(
+    async (
+      {
+        token,
+        investorId,
+        exchangeId,
+        decrypt,
+      }: { token: string; investorId: string; exchangeId: string; decrypt: boolean },
+      hre: HardhatRuntimeEnvironment,
+    ) => {
+      const cmds = await importCliModule('exchangemonthly', hre);
+      const chainConfig = await loadChainConfig(hre);
+
+      const options = defaultTxOptions(1);
+      options.mute = true;
+
+      const res = await cmds.cmdTokenExchangeMonthlyGetMonthlyCounter(
+        token,
+        investorId,
+        exchangeId,
+        chainConfig,
+        options,
+      );
+
+      if (decrypt) {
+        console.log(res.value);
+      } else {
+        console.log(res.handle);
+      }
+
+      return res;
+    },
+  );
+
+tokenScope
+  .task(SCOPE_TOKEN_EXCHANGE_MONTHLY_SET_EXCHANGE_LIMIT)
+  .setDescription('Sets the current monthly limit on exchangeID exchange')
+  .addParam('token', 'Token address', undefined, string)
+  .addParam('exchangeId', 'The address or wallet index/alias of the exchange identity', undefined, string)
+  .addParam('limit', 'The limit', undefined, bigint)
+  .addParam('owner', 'The address or wallet index/alias of a token owner', undefined, string)
+  .setAction(
+    async (
+      { token, exchangeId, limit, owner }: { token: string; exchangeId: string; limit: bigint; owner: string },
+      hre: HardhatRuntimeEnvironment,
+    ) => {
+      const cmds = await importCliModule('exchangemonthly', hre);
+      const chainConfig = await loadChainConfig(hre);
+
+      const options = defaultTxOptions(1);
+      options.mute = true;
+
+      const res = await cmds.cmdTokenSetExchangeMonthlyLimit(token, exchangeId, limit, owner, chainConfig, options);
+
+      console.log(res);
+
+      return res;
+    },
+  );
 
 // forcedtransfer (onlyAgent)
 // freeze-user (onlyAgent)

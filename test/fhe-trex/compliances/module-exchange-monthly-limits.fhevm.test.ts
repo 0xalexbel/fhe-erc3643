@@ -10,6 +10,7 @@ import {
 } from '../../utils';
 import { ExchangeMonthlyLimitsModule, Identity, IdentityRegistry, ModularCompliance, Token } from '../../../types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
+import { txWait } from '../../../sdk/utils';
 
 type MyContext = {
   suite: {
@@ -31,14 +32,14 @@ async function deployExchangeMonthlyLimitsFullSuite() {
   // verifyCharlie = true
   const context = await deploySuiteWithModularCompliancesFixture();
   // Set token compliance
-  await context.suite.token.setCompliance(context.suite.compliance);
+  await txWait(context.suite.token.setCompliance(context.suite.compliance), {});
   const ExchangeMonthlyLimitsModule = await ethers.getContractFactory('ExchangeMonthlyLimitsModule');
   // type = Contract
   const _complianceModule = await upgrades.deployProxy(ExchangeMonthlyLimitsModule, []);
   // type = ExchangeMonthlyLimitsModule
   const complianceModule = await ethers.getContractAt('ExchangeMonthlyLimitsModule', _complianceModule);
-  await context.suite.compliance.bindToken(context.suite.token);
-  await context.suite.compliance.addModule(complianceModule);
+  await txWait(context.suite.compliance.bindToken(context.suite.token), {});
+  await txWait(context.suite.compliance.addModule(complianceModule), {});
   await expect(context.suite.compliance.isModuleBound(complianceModule)).to.be.eventually.true;
 
   return {
@@ -442,7 +443,7 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
       describe('when monthly counter exceeds the monthly limit', () => {
         it('should return false', async () => {
           await resetModule();
-          const context = await deployExchangeMonthlyLimitsFullSuite();
+
           const from = context.accounts.aliceWallet;
           const to = context.accounts.bobWallet;
           const exchangeID = await context.suite.identityRegistry.identity(to);

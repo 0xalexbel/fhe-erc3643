@@ -1,5 +1,6 @@
 tmp/
 .*.history.json
+.openzeppelin/
 
 # hardhat-fhevm
 hh_fhevm/

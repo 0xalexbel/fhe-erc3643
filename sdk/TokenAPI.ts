@@ -1,3 +1,4 @@
+import assert from 'assert';
 import { ethers as EthersT } from 'ethers';
 import {
   Identity,
@@ -145,8 +146,11 @@ export class TokenAPI {
       runner = token.runner;
     }
 
-    // user cannot be zero
-    const userAddress = EthersT.resolveAddress(user);
+    if (typeof user !== 'string') {
+      throw new FheERC3643Error(`user argument is not a valid address type=${typeof user}`);
+    }
+
+    const userAddress = EthersT.getAddress(user);
     if (userAddress === EthersT.ZeroAddress) {
       throw new FheERC3643Error(`Invalid user address ${userAddress}`);
     }
