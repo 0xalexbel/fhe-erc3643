@@ -137,6 +137,18 @@ export async function expectTokenMintToSucceed(
   await expectTokenBalanceToEq(token, to, toBalance + BigInt(amount));
 }
 
+export async function expectTokenBurnToSucceed(
+  token: Token,
+  signer: EthersT.Signer,
+  to: EthersT.AddressLike,
+  amount: number | bigint,
+) {
+  const toBalance = await tokenBalanceOf(token, to);
+  expect(amount).to.be.greaterThanOrEqual(0);
+  await expectTokenBurnToEq(token, signer, to, amount, amount);
+  await expectTokenBalanceToEq(token, to, toBalance - BigInt(amount));
+}
+
 export async function expectTokenTransferToEq(
   token: Token,
   signer: EthersT.Signer,
@@ -144,6 +156,8 @@ export async function expectTokenTransferToEq(
   amount: number | bigint,
   expectedAmount: number | bigint,
 ) {
+  expect(amount).to.be.greaterThanOrEqual(0);
+  expect(expectedAmount).to.be.greaterThanOrEqual(0);
   const fromAddress = await signer.getAddress();
   const toAddress = await EthersT.resolveAddress(to);
   const txReceipt = await tokenTransfer(token, signer, to, amount);
@@ -163,11 +177,33 @@ export async function expectTokenMintToEq(
   amount: number | bigint,
   expectedAmount: number | bigint,
 ) {
+  expect(amount).to.be.greaterThanOrEqual(0);
+  expect(expectedAmount).to.be.greaterThanOrEqual(0);
   const toAddress = await EthersT.resolveAddress(to);
   const txReceipt = await tokenMint(token, signer, to, amount);
   const args = getLogEventArgs(txReceipt, 'Transfer', undefined);
   expect(args[0]).to.equal(EthersT.ZeroAddress);
   expect(args[1]).to.equal(toAddress);
+  if (args.length >= 3) {
+    const amount = await fhevm.decrypt64(args[2]);
+    expect(amount).to.equal(expectedAmount);
+  }
+}
+
+export async function expectTokenBurnToEq(
+  token: Token,
+  signer: EthersT.Signer,
+  from: EthersT.AddressLike,
+  amount: number | bigint,
+  expectedAmount: number | bigint,
+) {
+  expect(amount).to.be.greaterThanOrEqual(0);
+  expect(expectedAmount).to.be.greaterThanOrEqual(0);
+  const fromAddress = await EthersT.resolveAddress(from);
+  const txReceipt = await tokenBurn(token, signer, from, amount);
+  const args = getLogEventArgs(txReceipt, 'Transfer', undefined);
+  expect(args[0]).to.equal(fromAddress);
+  expect(args[1]).to.equal(EthersT.ZeroAddress);
   if (args.length >= 3) {
     const amount = await fhevm.decrypt64(args[2]);
     expect(amount).to.equal(expectedAmount);
