@@ -29,7 +29,7 @@ type MyContext = {
 
 async function deployExchangeMonthlyLimitsFullSuite() {
   // verifyCharlie = true
-  const context = await deploySuiteWithModularCompliancesFixture(true);
+  const context = await deploySuiteWithModularCompliancesFixture();
   // Set token compliance
   await context.suite.token.setCompliance(context.suite.compliance);
   const ExchangeMonthlyLimitsModule = await ethers.getContractFactory('ExchangeMonthlyLimitsModule');
