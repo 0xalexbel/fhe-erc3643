@@ -326,63 +326,15 @@ contract Token is IToken, AgentRoleUpgradeable, TokenStorage {
 
         revert("Transfer not possible");
 
-        // // require(_amount <= balanceOf(_from) - (_frozenTokens[_from]), "Insufficient Balance");
-        // // if (_tokenIdentityRegistry.isVerified(_to) && _tokenCompliance.canTransfer(_from, _to, _amount)) {
-        // //     _approve(_from, msg.sender, _allowances[_from][msg.sender] - (_amount));
-        // //     _transfer(_from, _to, _amount);
-        // //     _tokenCompliance.transferred(_from, _to, _amount);
-        // //     return true;
-        // // }
-        // // revert("Transfer not possible");
+        // require(_amount <= balanceOf(_from) - (_frozenTokens[_from]), "Insufficient Balance");
+        // if (_tokenIdentityRegistry.isVerified(_to) && _tokenCompliance.canTransfer(_from, _to, _amount)) {
+        //     _approve(_from, msg.sender, _allowances[_from][msg.sender] - (_amount));
+        //     _transfer(_from, _to, _amount);
+        //     _tokenCompliance.transferred(_from, _to, _amount);
+        //     return true;
+        // }
+        // revert("Transfer not possible");
     }
-
-    /*
-
-    // Transfers `amount` tokens using the caller's allowance.
-    function transferFrom(address from, address to, euint64 amount) public virtual returns (bool) {
-        require(TFHE.isSenderAllowed(amount));
-        address spender = msg.sender;
-        ebool isTransferable = _updateAllowance(from, spender, amount);
-        _transfer(from, to, amount, isTransferable);
-        return true;
-    }
-
-    function _approve(address owner, address spender, euint64 amount) internal virtual {
-        _allowances[owner][spender] = amount;
-        TFHE.allow(amount, address(this));
-        TFHE.allow(amount, owner);
-        TFHE.allow(amount, spender);
-    }
-
-    function _allowance(address owner, address spender) internal view virtual returns (euint64) {
-        return _allowances[owner][spender];
-    }
-
-    function _updateAllowance(address owner, address spender, euint64 amount) internal virtual returns (ebool) {
-        euint64 currentAllowance = _allowance(owner, spender);
-        // makes sure the allowance suffices
-        ebool allowedTransfer = TFHE.le(amount, currentAllowance);
-        // makes sure the owner has enough tokens
-        ebool canTransfer = TFHE.le(amount, _balances[owner]);
-        ebool isTransferable = TFHE.and(canTransfer, allowedTransfer);
-        _approve(owner, spender, TFHE.select(isTransferable, TFHE.sub(currentAllowance, amount), currentAllowance));
-        return isTransferable;
-    }
-
-    function _approve(address _owner, address _spender, euint64 _amount) internal virtual {
-        require(_owner != address(0), "ERC20: approve from the zero address");
-        require(_spender != address(0), "ERC20: approve to the zero address");
-
-        _allowances[_owner][_spender] = _amount;
-
-        TFHE.allow(_amount, address(this));
-        TFHE.allow(_amount, _owner);
-        TFHE.allow(_amount, _spender);
-
-        emit Approval(_owner, _spender, _amount);
-    }
-
-*/
 
     /**
      *  @dev See {IToken-batchForcedTransfer}.
