@@ -1,10 +1,6 @@
-import { ethers as EthersT } from 'ethers';
 import { ethers } from 'hardhat';
 import { deploySuiteWithModularCompliancesFixture } from '../fixtures/deploy-full-suite.fixture';
 import { expectTokenBalanceToEq, expectTokenTransferToEq, tokenBalanceOf } from '../../utils';
-import { ModularCompliance, Token, TransferRestrictModule } from '../../../types';
-import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { expect } from 'chai';
 
 async function deployTransferRestrictFullSuite() {
   const context = await deploySuiteWithModularCompliancesFixture();

@@ -10,11 +10,11 @@ import {AgentRole} from "../../../roles/AgentRole.sol";
 contract ExchangeMonthlyLimitsModule is AbstractModuleUpgradeable {
     /// Struct of transfer Counters
     struct ExchangeTransferCounter {
-        uint256 monthlyCount;
+        euint64 monthlyCount;
         uint256 monthlyTimer;
     }
 
-    /// Getter for Tokens monthlyLimit
+    /// Getter for Tokens monthlyLimit (euint64)
     mapping(address => mapping(address => uint256)) private _exchangeMonthlyLimit;
 
     /// Mapping for users Counters
@@ -110,14 +110,12 @@ contract ExchangeMonthlyLimitsModule is AbstractModuleUpgradeable {
     /**
      *  @dev See {IModule-moduleTransferAction}.
      */
-    function moduleTransferAction(address _from, address _to, euint64 _value) external override onlyComplianceCall {
-        revert("TODO");
-        // address senderIdentity = _getIdentity(msg.sender, _from);
-        // address receiverIdentity = _getIdentity(msg.sender, _to);
-
-        // if (isExchangeID(receiverIdentity) && !_isTokenAgent(msg.sender, _from)) {
-        //     _increaseExchangeCounters(msg.sender, receiverIdentity, senderIdentity, _value);
-        // }
+    function moduleTransferAction(address _from, address _to, euint64 _evalue) external override onlyComplianceCall {
+        address senderIdentity = _getIdentity(msg.sender, _from);
+        address receiverIdentity = _getIdentity(msg.sender, _to);
+        if (isExchangeID(receiverIdentity) && !_isTokenAgent(msg.sender, _from)) {
+            _increaseExchangeCounters(msg.sender, receiverIdentity, senderIdentity, _evalue);
+        }
     }
 
     /**
@@ -136,24 +134,45 @@ contract ExchangeMonthlyLimitsModule is AbstractModuleUpgradeable {
      *  @dev See {IModule-moduleCheck}.
      */
     function moduleCheck(
-        address /*_from*/,
-        address /*_to*/,
-        euint64 /*_value*/,
-        address /*_compliance*/
+        address _from,
+        address _to,
+        euint64 _evalue,
+        address _compliance
     ) external override returns (ebool) {
-        // if (_from == address(0) || _isTokenAgent(_compliance, _from)) {
-        //     return TFHE.asEbool(true);
-        // }
+        require(
+            TFHE.isAllowed(_evalue, address(this)),
+            "TFHE: ExchangeMonthlyLimitsModule does not have TFHE permissions to access value argument"
+        );
 
-        // address senderIdentity = _getIdentity(_compliance, _from);
-        // if (isExchangeID(senderIdentity)) {
-        //     return TFHE.asEbool(true);
-        // }
+        if (_from == address(0) || _isTokenAgent(_compliance, _from)) {
+            ebool eTrue = TFHE.asEbool(true);
+            TFHE.allowTransient(eTrue, msg.sender);
+            return eTrue;
+        }
 
-        // address receiverIdentity = _getIdentity(_compliance, _to);
-        // if (!isExchangeID(receiverIdentity)) {
-        //     return TFHE.asEbool(true);
-        // }
+        address senderIdentity = _getIdentity(_compliance, _from);
+        if (isExchangeID(senderIdentity)) {
+            ebool eTrue = TFHE.asEbool(true);
+            TFHE.allowTransient(eTrue, msg.sender);
+            return eTrue;
+        }
+
+        address receiverIdentity = _getIdentity(_compliance, _to);
+        if (!isExchangeID(receiverIdentity)) {
+            ebool eTrue = TFHE.asEbool(true);
+            TFHE.allowTransient(eTrue, msg.sender);
+            return eTrue;
+        }
+
+        euint64 mc = getMonthlyCounter(_compliance, receiverIdentity, senderIdentity);
+        if (euint64.unwrap(mc) == 0) {
+            mc = TFHE.asEuint64(0);
+        }
+
+        require(
+            euint64.unwrap(mc) == 0 || TFHE.isAllowed(mc, address(this)),
+            "TFHE: ExchangeMonthlyLimitsModule does not have TFHE permissions to access monthly counter stored value"
+        );
 
         // if (_value > _exchangeMonthlyLimit[_compliance][receiverIdentity]) {
         //     return TFHE.asEbool(false);
@@ -170,9 +189,42 @@ contract ExchangeMonthlyLimitsModule is AbstractModuleUpgradeable {
         //     return TFHE.asEbool(false);
         // }
 
-        ebool eTrue = TFHE.asEbool(true);
-        TFHE.allowTransient(eTrue, msg.sender);
-        return eTrue;
+        /*
+        if ( A ) {
+            return false
+        }
+        if ( B ) {
+            return true
+        }
+        if ( C ) {
+            return false
+        }
+        return true
+
+        !A AND ( B OR !C  )
+        */
+
+        // A = (_value > _exchangeMonthlyLimit[_compliance][receiverIdentity])
+        //
+        // notA = (_value <= _exchangeMonthlyLimit[_compliance][receiverIdentity])
+        ebool notA = TFHE.le(_evalue, TFHE.asEuint64(_exchangeMonthlyLimit[_compliance][receiverIdentity]));
+
+        // B = (_isExchangeMonthFinished(_compliance, receiverIdentity, senderIdentity))
+        ebool B = TFHE.asEbool(_isExchangeMonthFinished(_compliance, receiverIdentity, senderIdentity));
+
+        // C = (
+        //     getMonthlyCounter(_compliance, receiverIdentity, senderIdentity) + _value >
+        //     _exchangeMonthlyLimit[_compliance][receiverIdentity]
+        // )
+        euint64 a = TFHE.add(mc, _evalue);
+        euint64 b = TFHE.asEuint64(_exchangeMonthlyLimit[_compliance][receiverIdentity]);
+        ebool notC = TFHE.le(a, b);
+
+        ebool res = TFHE.or(B, notC);
+        res = TFHE.and(notA, res);
+
+        TFHE.allowTransient(res, msg.sender);
+        return res;
     }
 
     /**
@@ -210,7 +262,7 @@ contract ExchangeMonthlyLimitsModule is AbstractModuleUpgradeable {
         address compliance,
         address _exchangeID,
         address _investorID
-    ) public view returns (uint256) {
+    ) public view returns (euint64) {
         return (_exchangeCounters[compliance][_exchangeID][_investorID]).monthlyCount;
     }
 
@@ -252,17 +304,25 @@ contract ExchangeMonthlyLimitsModule is AbstractModuleUpgradeable {
      *  @param compliance the Compliance smart contract address
      *  @param _exchangeID ONCHAINID of the exchange
      *  @param _investorID address on which counters will be increased
-     *  @param _value, value of transaction)to be increased
+     *  @param _evalue, value of transaction to be increased
      *  internal function, can be called only from the functions of the Compliance smart contract
      */
     function _increaseExchangeCounters(
         address compliance,
         address _exchangeID,
         address _investorID,
-        uint256 _value
+        euint64 _evalue
     ) internal {
+        require(
+            TFHE.isAllowed(_evalue, address(this)),
+            "TFHE: ExchangeMonthlyLimitsModule does not have TFHE permissions to access value argument"
+        );
+
         _resetExchangeMonthlyCooldown(compliance, _exchangeID, _investorID);
-        _exchangeCounters[compliance][_exchangeID][_investorID].monthlyCount += _value;
+
+        euint64 newV = TFHE.add(_exchangeCounters[compliance][_exchangeID][_investorID].monthlyCount, _evalue);
+        TFHE.allow(newV, address(this));
+        _exchangeCounters[compliance][_exchangeID][_investorID].monthlyCount = newV;
     }
 
     /**
@@ -276,7 +336,11 @@ contract ExchangeMonthlyLimitsModule is AbstractModuleUpgradeable {
         if (_isExchangeMonthFinished(compliance, _exchangeID, _investorID)) {
             ExchangeTransferCounter storage counter = _exchangeCounters[compliance][_exchangeID][_investorID];
             counter.monthlyTimer = block.timestamp + 30 days;
-            counter.monthlyCount = 0;
+
+            euint64 ezero = TFHE.asEuint64(0);
+            TFHE.allow(ezero, address(this));
+
+            counter.monthlyCount = ezero;
         }
     }
 
