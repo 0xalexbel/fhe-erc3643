@@ -1,6 +1,6 @@
 import { ethers, upgrades } from 'hardhat';
 import { expect } from 'chai';
-import { deployComplianceFixture } from '../fixtures/deploy-compliance.fixture';
+import { deployComplianceFixture } from '../../fixtures/deploy-compliance.fixture';
 
 describe('ConditionalTransferModule', () => {
   async function deployComplianceWithConditionalTransferModule() {

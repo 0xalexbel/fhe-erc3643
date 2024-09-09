@@ -123,3 +123,4 @@ It supports both the mock and local node modes.
 - On the FHEVM node: Some tests are running when manually executed using the CLI while failing when run via Chai + Mocha
 - DVA has been ported but the corresponding CLI is not available
 - Some CLI commands are missing (transfer-from, etc.) 
+- Modules that have not been converted yet: ConditionalTransferModule, MaxBalanceModule, TransferFeesModule. 
