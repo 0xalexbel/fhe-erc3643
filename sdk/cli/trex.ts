@@ -3,7 +3,7 @@ import { ClaimIssuer, IdFactory, Token, TREXFactory, TREXImplementationAuthority
 import { ChainConfig } from '../ChainConfig';
 import { ClaimIssuerAPI } from '../ClaimIssuerAPI';
 import { TREXImplementationAuthorityAPI } from '../TRexImplementationAuthorityAPI';
-import { defaultTxOptions } from '../utils';
+import { defaultTxOptions } from '../log';
 import fs from 'fs';
 import { cmdTokenAddIdentity, cmdTokenNew, NewTokenResult } from './token';
 import { cmdAddAgent } from './roles';
@@ -22,20 +22,19 @@ import { ExchangeMonthlyLimitsModuleAPI } from '../ExchangeMonthlyLimitsModuleAP
 export async function cmdTREXNewFactory(
   wallet: string,
   chainConfig: ChainConfig,
-  txOptions?: TxOptions,
+  options: TxOptions,
 ): Promise<{
   idFactory: IdFactory;
   authority: TREXImplementationAuthority;
   factory: TREXFactory;
 }> {
-  txOptions = txOptions ?? defaultTxOptions(1);
   const ownerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(wallet);
 
   const trexFactory = await TREXImplementationAuthorityAPI.loadOrDeployTREXConfig(
     {},
     ownerWallet,
     chainConfig,
-    txOptions,
+    options,
   );
 
   return trexFactory;
@@ -44,7 +43,7 @@ export async function cmdTREXNewFactory(
 ////////////////////////////////////////////////////////////////////////////////
 
 export function cmdTREXSetupTxOptions() {
-  return defaultTxOptions(37 + 3);
+  return defaultTxOptions(44);
 }
 
 export type CmdTREXSetupOutput = {
@@ -72,10 +71,8 @@ export async function cmdTREXSetup(
   chainConfig: ChainConfig,
   mint: bigint,
   unpause: boolean,
-  options?: TxOptions,
+  options: TxOptions,
 ): Promise<CmdTREXSetupOutput> {
-  options = options ?? cmdTREXSetupTxOptions();
-
   if (options.progress) {
     if (mint > 0n) {
       options.progress.stepCount += 5;
@@ -249,7 +246,7 @@ export async function cmdTREXSetup(
     logStepOK(`Bar government name claim was successfully added to ${users[i].wallet} with id ${nameClaimId}`, options);
   }
 
-  const token = TokenAPI.from(tokenResult.token);
+  const token = await TokenAPI.fromSafe(tokenResult.token, chainConfig.provider);
 
   await deployModuleImplementations(
     token,
@@ -266,7 +263,7 @@ export async function cmdTREXSetup(
     for (let i = 0; i < users.length; ++i) {
       const userWallet = chainConfig.getWalletFromName(users[i].wallet, chainConfig.provider);
       const enc = await chainConfig.encrypt64(token, userWallet, mint);
-      await TokenAPI.mint(token, userWallet, enc.handles[0], enc.inputProof, tokenAgentWallet, chainConfig, options);
+      await TokenAPI.mint(token, userWallet, enc.handles[0], enc.inputProof, tokenAgentWallet, options);
 
       logStepOK(`Minted ${mint} tokens to '${users[i].wallet}'`, options);
     }
@@ -312,6 +309,7 @@ async function deployModuleImplementations(
     complianceOwnerWallet,
     1_000_000_000n,
     chainConfig,
+    chainConfig.provider,
     options,
   );
 

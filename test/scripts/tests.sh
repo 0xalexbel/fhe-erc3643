@@ -15,6 +15,7 @@ for file in ${TEST_FILES}; do
   run_test $file
 done
 
+
 # npx hardhat test ./test/fhe-trex/token/token-recovery.test.ts
 # npx hardhat test ./test/fhe-trex/token/token-information.test.ts
 # npx hardhat test ./test/fhe-trex/token/token-transfer.test.ts

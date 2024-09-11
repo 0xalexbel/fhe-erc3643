@@ -1,8 +1,7 @@
 import { AgentRoleAPI } from '../AgentRoleAPI';
 import { ChainConfig } from '../ChainConfig';
-import { logInfo, logOK } from '../log';
+import { logStepInfo, logStepOK } from '../log';
 import { TxOptions } from '../types';
-import { defaultTxOptions } from '../utils';
 
 /**
  * @returns true if role was added, false if was already added or throw an error if failed.
@@ -23,23 +22,13 @@ export async function cmdAddAgent(
 
   const agentRole = await AgentRoleAPI.fromWithOwner(target, agentRoleOwner);
   if (await agentRole.isAgent(address)) {
-    if (options.mute !== true) {
-      logInfo(`Address '${addressAlias}' is already an agent of '${target}'`);
-    }
+    logStepInfo(`Address '${addressAlias}' is already an agent of '${target}'`, options);
     return false;
   }
 
   await AgentRoleAPI.addAgent(agentRole, address, agentRoleOwner, options);
 
-  if (options) {
-    if (options.mute !== true) {
-      logOK(`Address '${addressAlias}' is now an agent of '${target}'`);
-    } else {
-      if (options.progress) {
-        options.progress.logStep(`Address '${addressAlias}' is now an agent of '${target}'`);
-      }
-    }
-  }
+  logStepOK(`Address '${addressAlias}' is now an agent of '${target}'`, options);
 
   return true;
 }

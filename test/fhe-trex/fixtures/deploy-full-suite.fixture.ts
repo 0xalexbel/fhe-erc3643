@@ -43,7 +43,9 @@ class Progress {
 
   logStep(msg: string) {
     if (hre.network.name === 'fhevm') {
-      console.log(`\x1b[33m${this.step}/\x1b[0m\x1b[32m${this.stepCount}\x1b[0m \x1b[2m${msg}\x1b[0m`);
+      console.log(
+        `\x1b[33m${this.step.toPrecision()}/\x1b[0m\x1b[32m${this.stepCount.toPrecision()}\x1b[0m \x1b[2m${msg}\x1b[0m`,
+      );
     }
     this.step += 1;
   }
@@ -271,7 +273,7 @@ async function addClaimTopics(
 }
 
 async function addClaimKey(erc734: IERC734, manager: tethers.ContractRunner, keyAddress: string) {
-  let tx = await erc734.connect(manager).addKey(
+  const tx = await erc734.connect(manager).addKey(
     hre.ethers.keccak256(hre.ethers.AbiCoder.defaultAbiCoder().encode(['address'], [keyAddress])),
     3, //CLAIM
     1, //ECDSA
@@ -280,7 +282,7 @@ async function addClaimKey(erc734: IERC734, manager: tethers.ContractRunner, key
 }
 
 async function addActionKey(erc734: IERC734, manager: tethers.ContractRunner, keyAddress: string) {
-  let tx = await erc734.connect(manager).addKey(
+  const tx = await erc734.connect(manager).addKey(
     hre.ethers.keccak256(hre.ethers.AbiCoder.defaultAbiCoder().encode(['address'], [keyAddress])),
     2, //ACTION
     1, //ECDSA
@@ -303,8 +305,7 @@ export async function deployFullSuiteFixture() {
   ] = await hre.ethers.getSigners();
 
   const n = 30;
-  let step = 1;
-  const progress = new Progress(30);
+  const progress = new Progress(n);
 
   //Deploy implementations
   const claimTopicsRegistryImplementation = await hre.ethers.deployContract('ClaimTopicsRegistry', deployer);

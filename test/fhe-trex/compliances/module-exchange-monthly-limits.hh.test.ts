@@ -1,15 +1,7 @@
 import { ethers, upgrades, fhevm } from 'hardhat';
 import { expect } from 'chai';
-import { deployComplianceFixture } from '../fixtures/deploy-compliance.fixture';
 import { deploySuiteWithModularCompliancesFixture } from '../fixtures/deploy-full-suite.fixture';
-import {
-  expectTokenBalanceToEq,
-  expectTokenMintToSucceed,
-  expectTokenTransferToEq,
-  expectTokenTransferToFail,
-  expectTokenTransferToSucceed,
-  tokenBalanceOf,
-} from '../../utils';
+import { expectTokenMintToSucceed, expectTokenTransferToFail, expectTokenTransferToSucceed } from '../../utils';
 
 async function deployExchangeMonthlyLimitsFullSuite() {
   const context = await deploySuiteWithModularCompliancesFixture();
@@ -102,7 +94,7 @@ describe('Compliance Module: ExchangeMonthlyLimits', () => {
             });
           });
           describe('when the exchange month is not finished', () => {
-            it('BBBB should not update monthly timer', async () => {
+            it('should not update monthly timer', async () => {
               const context = await deployExchangeMonthlyLimitsFullSuite();
               const fromWallet = context.accounts.aliceWallet;
               const toWallet = context.accounts.bobWallet;

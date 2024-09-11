@@ -1,3 +1,5 @@
+/* eslint-disable  @typescript-eslint/no-unused-expressions */
+
 import { ethers, upgrades } from 'hardhat';
 import { expect } from 'chai';
 import { deployComplianceFixture } from '../fixtures/deploy-compliance.fixture';

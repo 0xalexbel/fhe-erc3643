@@ -1,8 +1,8 @@
 import { ethers as EthersT } from 'ethers';
-import { TxOptions } from './types';
+import { History, TxOptions } from './types';
 import { ClaimIssuer, ClaimIssuer__factory, Identity, ITREXFactory } from './artifacts';
 import { IdentityAPI } from './IdentityAPI';
-import { ChainConfig } from './ChainConfig';
+import { logStepDeployOK } from './log';
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +136,7 @@ export class ClaimIssuerAPI {
   static async deployNewClaimIssuer(
     initialManagementKey: EthersT.AddressLike,
     deployer: EthersT.Signer,
-    chainConfig: ChainConfig,
+    history: History,
     options?: TxOptions,
   ) {
     const initialManagementKeyAddress = await EthersT.resolveAddress(initialManagementKey);
@@ -156,11 +156,8 @@ export class ClaimIssuerAPI {
 
     const issuerAddress = await issuer.getAddress();
 
-    if (options?.progress) {
-      options.progress.contractDeployed('ClaimIssuer', issuerAddress);
-    }
-
-    await chainConfig.saveClaimIssuer(issuerAddress);
+    await logStepDeployOK('ClaimIssuer', issuerAddress, options);
+    await history.saveContract(issuerAddress, 'ClaimIssuer');
 
     return issuer;
   }

@@ -1,10 +1,11 @@
-import { ethers, upgrades, fhevm } from 'hardhat';
+/* eslint-disable  @typescript-eslint/no-unused-expressions */
+
+import { ethers, upgrades } from 'hardhat';
 import { expect } from 'chai';
 import { deployComplianceFixture } from '../fixtures/deploy-compliance.fixture';
 import { deploySuiteWithModularCompliancesFixture } from '../fixtures/deploy-full-suite.fixture';
-import { encrypt64, tokenBalanceOf, tokenMint, tokenTotalSupply, tokenTransfer } from '../../utils';
+import { encrypt64 } from '../../utils';
 import { SupplyLimitModule } from '../../../types';
-import { SupplyLimitModuleInterface } from '../../../types/contracts/fhe-trex/compliance/modular/modules/SupplyLimitModule';
 
 async function deploySupplyLimitFixture() {
   const context = await deployComplianceFixture();

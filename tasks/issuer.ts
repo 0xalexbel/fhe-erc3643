@@ -4,7 +4,7 @@ import { string } from 'hardhat/internal/core/params/argumentTypes';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { loadChainConfig } from './utils';
 import { SCOPE_CLAIM_ISSUER, SCOPE_CLAIM_ISSUER_LIST, SCOPE_CLAIM_ISSUER_NEW } from './task-names';
-import { logDeployOK, logInfo, logMsg } from '../sdk/log';
+import { logInfo, logMsg } from '../sdk/log';
 import { importCliModule } from './internal/imp';
 
 const issuerScope = scope(SCOPE_CLAIM_ISSUER, 'Manage claim issuers');
@@ -43,7 +43,7 @@ issuerScope
 
     const claimIssuer: EthersT.AddressLike = await cmds.cmdNewClaimIssuer(wallet, chainConfig);
 
-    await logDeployOK('Claim issuer', claimIssuer);
+    //await logStepDeployOK('Claim issuer', claimIssuer);
 
     return claimIssuer;
   });

@@ -1,9 +1,10 @@
+/* eslint-disable  @typescript-eslint/no-unused-expressions */
+
 import { ethers, upgrades, fhevm } from 'hardhat';
 import { expect } from 'chai';
 import { deployComplianceFixture } from '../fixtures/deploy-compliance.fixture';
 import { deploySuiteWithModularCompliancesFixture } from '../fixtures/deploy-full-suite.fixture';
 import { ModularCompliance, TimeExchangeLimitsModule } from '../../../types';
-import { TimeExchangeLimitsModuleInterface } from '../../../types/contracts/fhe-trex/compliance/modular/modules/TimeExchangeLimitsModule';
 import { encrypt64, getLogEventArgs, tokenBalanceOf, tokenTransfer } from '../../utils';
 import { ethers as EthersT } from 'ethers';
 import { expectRevert } from '../../tx_error';

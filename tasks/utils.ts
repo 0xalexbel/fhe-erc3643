@@ -1,50 +1,62 @@
-import { ethers as EthersT } from 'ethers';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { ChainConfig } from '../sdk/ChainConfig';
 import path from 'path';
-import { isDeployed } from '../sdk/utils';
-import {
-  FhevmRuntimeEnvironmentType,
-  HardhatFhevmRuntimeEnvironment,
-} from 'hardhat-fhevm/dist/src/common/HardhatFhevmRuntimeEnvironment';
 import { TASK_FHEVM_SETUP } from 'hardhat-fhevm/dist/src/task-names';
+import { LogOptions } from '../sdk/log';
+import fs from 'fs';
 
 /**
  * Start the fhevm local node if needed and deploy all FHEVM contracts
  */
-async function setupFhevmEnvironment(hre: HardhatRuntimeEnvironment) {
-  if (!HardhatFhevmRuntimeEnvironment.isUserRequested(hre)) {
+async function setupFhevmEnvironment(hre: HardhatRuntimeEnvironment, logOptions: LogOptions) {
+  // if (!HardhatFhevmRuntimeEnvironment.isUserRequested(hre)) {
+  //   return;
+  // }
+
+  //if (!(await isDeployed(hre.ethers.provider, hre.fhevm.ACLAddress()))) {
+  //   if (hre.fhevm.runtimeType() === FhevmRuntimeEnvironmentType.Mock) {
+  //     await hre.run('fhevm:start:mock');
+  //   } else {
+  //     await hre.run('fhevm:start');
+  //   }
+  //}
+
+  // try {
+  //   // Should support mupliple calls.
+  //   // Initialize fhevm runtime
+  //   await hre.fhevm.init();
+  // } catch (e) {}
+
+  // // Add a separator
+  // //console.log('');
+  await hre.run(TASK_FHEVM_SETUP, { quiet: !!logOptions.quiet });
+}
+
+export function getHistoryPath(hre: HardhatRuntimeEnvironment) {
+  if (hre.network.name === 'hardhat') {
+    return path.normalize(path.join(__dirname, '../.fhe-erc3643.hh.history.json'));
+  }
+  if (hre.network.name === 'fhevm') {
+    return path.normalize(path.join(__dirname, '../.fhe-erc3643.fhevm.history.json'));
+  }
+  return undefined;
+}
+
+export function clearHistory(hre: HardhatRuntimeEnvironment) {
+  const p = getHistoryPath(hre);
+  if (!p) {
     return;
   }
-
-  if (!(await isDeployed(hre.ethers.provider, hre.fhevm.ACLAddress()))) {
-    if (hre.fhevm.runtimeType() === FhevmRuntimeEnvironmentType.Mock) {
-      await hre.run('fhevm:start:mock');
-    } else {
-      await hre.run('fhevm:start');
-    }
+  if (fs.existsSync(p)) {
+    fs.rmSync(p);
   }
-
-  try {
-    // Should support mupliple calls.
-    // Initialize fhevm runtime
-    await hre.fhevm.init();
-  } catch (e) {}
-
-  // Add a separator
-  //console.log('');
-  //await hre.run(TASK_FHEVM_SETUP);
 }
 
-export function getHistoryPath() {
-  return path.normalize(path.join(__dirname, '../.fhe-erc3643.history.json'));
-}
-
-export async function loadChainConfig(hre: HardhatRuntimeEnvironment) {
+export async function loadChainConfig(hre: HardhatRuntimeEnvironment, logOptions?: LogOptions) {
   const networkName = hre.network.name;
-  const historyPath: string | undefined = networkName === 'hardhat' ? undefined : getHistoryPath();
+  const historyPath: string | undefined = getHistoryPath(hre);
 
-  await setupFhevmEnvironment(hre);
+  await setupFhevmEnvironment(hre, logOptions ?? { quiet: false });
 
   const mnemonic = (hre.config.networks[networkName].accounts as any).mnemonic;
   const walletPath = (hre.config.networks[networkName].accounts as any).path;

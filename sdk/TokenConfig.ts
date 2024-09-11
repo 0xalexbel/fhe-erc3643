@@ -2,7 +2,7 @@ import { ethers as EthersT } from 'ethers';
 import fs from 'fs';
 import { ClaimTopic, toClaimTopic } from './ClaimIssuerAPI';
 import { ChainConfig } from './ChainConfig';
-import { TREXFactoryAPI } from './TREXFactory';
+import { TREXFactoryAPI } from './TREXFactoryAPI';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { IdentityRegistryAPI } from './IdentityRegistryAPI';
@@ -406,7 +406,7 @@ export class TokenConfig {
       return null;
     }
 
-    const token = TokenAPI.from(tokenAddress, chain.provider);
+    const token = await TokenAPI.fromSafe(tokenAddress, chain.provider);
 
     const c = TokenConfig.ZeroConfig();
     c.salt = tokenSalt;

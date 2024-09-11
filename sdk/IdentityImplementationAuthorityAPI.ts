@@ -1,5 +1,5 @@
 import { ethers as EthersT } from 'ethers';
-import { TxOptions } from './types';
+import { History, TxOptions } from './types';
 import {
   Identity,
   Identity__factory,
@@ -11,7 +11,7 @@ import {
 } from './artifacts';
 import { IdentityAPI } from './IdentityAPI';
 import { IdFactoryAPI } from './IdFactoryAPI';
-import { ChainConfig } from './ChainConfig';
+import { logStepDeployOK } from './log';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +29,7 @@ export class IdentityImplementationAuthorityAPI {
     authority: ImplementationAuthority,
     initialManagementKey: EthersT.AddressLike,
     deployer: EthersT.Signer,
-    chainConfig: ChainConfig,
+    history: History,
     options?: TxOptions,
   ) {
     const proxyFactory = new IdentityProxy__factory();
@@ -38,13 +38,8 @@ export class IdentityImplementationAuthorityAPI {
 
     const identityAddress = await proxy.getAddress();
 
-    if (options) {
-      if (options.progress) {
-        options.progress.contractDeployed('IdentityProxy', identityAddress);
-      }
-
-      await chainConfig.saveIdentity(identityAddress);
-    }
+    await logStepDeployOK('IdentityProxy', identityAddress, options);
+    await history.saveContract(identityAddress, 'IdentityProxy');
 
     const newIdentity = IdentityAPI.from(identityAddress, deployer);
 
@@ -54,17 +49,17 @@ export class IdentityImplementationAuthorityAPI {
   static async loadOrDeployIdFactory(
     idFactory: string | null | undefined,
     owner: EthersT.Signer,
-    chainConfig: ChainConfig,
+    history: History,
     options?: TxOptions,
   ) {
     if (idFactory) {
       return (await IdFactoryAPI.fromWithOwner(idFactory, owner)).idFactory;
     } else {
-      return (await this.deployNewIdFactory(owner, chainConfig, options)).idFactory;
+      return (await this.deployNewIdFactory(owner, history, options)).idFactory;
     }
   }
 
-  static async deployNewIdFactory(deployer: EthersT.Signer, chainConfig: ChainConfig, options?: TxOptions) {
+  static async deployNewIdFactory(deployer: EthersT.Signer, history: History, options?: TxOptions) {
     const { implementationAuthority, identityImplementation } = await this.deployNewIdentityImplementationAuthority(
       deployer,
       options,
@@ -73,15 +68,9 @@ export class IdentityImplementationAuthorityAPI {
     const idFactory: IdFactory = await idFactoryFactory.connect(deployer).deploy(implementationAuthority);
     await idFactory.waitForDeployment();
 
-    if (options) {
-      const idFactoryAddress = await idFactory.getAddress();
-
-      if (options.progress) {
-        options.progress.contractDeployed('IdFactory', idFactoryAddress);
-      }
-
-      await chainConfig.saveIdFactory(idFactoryAddress);
-    }
+    const idFactoryAddress = await idFactory.getAddress();
+    await logStepDeployOK('IdFactory', idFactoryAddress, options);
+    await history.saveContract(idFactoryAddress, 'IdFactory');
 
     return {
       idFactory,
@@ -96,9 +85,7 @@ export class IdentityImplementationAuthorityAPI {
     const identityImplementation: Identity = await identityFactory.connect(deployer).deploy(deployer, true);
     await identityImplementation.waitForDeployment();
 
-    if (options?.progress) {
-      options.progress.contractDeployed('Identity', await identityImplementation.getAddress());
-    }
+    await logStepDeployOK('Identity', await identityImplementation.getAddress(), options);
 
     // deploy a new ImplementationAuthority that owns the official Identity bytecode
     const implementationAuthorityFactory = new ImplementationAuthority__factory();
@@ -112,9 +99,7 @@ export class IdentityImplementationAuthorityAPI {
       throw new Error('ImplementationAuthority deployement failed.');
     }
 
-    if (options?.progress) {
-      options.progress.contractDeployed('ImplementationAuthority', await implementationAuthority.getAddress());
-    }
+    await logStepDeployOK('ImplementationAuthority', await implementationAuthority.getAddress(), options);
 
     return {
       implementationAuthority,

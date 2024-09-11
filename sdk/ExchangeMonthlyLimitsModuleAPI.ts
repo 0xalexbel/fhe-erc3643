@@ -6,14 +6,14 @@ import {
   ExchangeMonthlyLimitsModule__factory,
   Token,
 } from './artifacts';
-import { TxOptions } from './types';
+import { TxOptions, WalletResolver } from './types';
 import { txWait } from './utils';
-import { ChainConfig } from './ChainConfig';
 import { getLogEventArgs } from '../test/utils';
-import { FheERC3643Error, throwIfNotOwner } from './errors';
+import { FheERC3643Error, throwIfNoProvider, throwIfNotOwner } from './errors';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { ModuleAPI } from './ModuleAPI';
+import { logStepDeployOK } from './log';
 
 export class ExchangeMonthlyLimitsModuleAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): ExchangeMonthlyLimitsModule {
@@ -56,18 +56,14 @@ export class ExchangeMonthlyLimitsModuleAPI {
     moduleImplementationOwner: EthersT.Signer,
     compliance: ModularCompliance,
     complianceOwner: EthersT.Signer,
-    chainConfig: ChainConfig,
+    runner: EthersT.ContractRunner,
     options: TxOptions,
   ) {
     const imodule = await ModuleAPI.deployNew('ExchangeMonthlyLimitsModule', moduleImplementationOwner);
-    const exchangeMonthlyLimitsModule = ExchangeMonthlyLimitsModuleAPI.from(
-      await imodule.getAddress(),
-      chainConfig.provider,
-    );
+    const exchangeMonthlyLimitsModule = ExchangeMonthlyLimitsModuleAPI.from(await imodule.getAddress(), runner);
     await ModularComplianceAPI.addModule(compliance, exchangeMonthlyLimitsModule, complianceOwner, options);
-    if (options?.progress) {
-      options.progress.contractDeployed('ExchangeMonthlyLimitsModule', await exchangeMonthlyLimitsModule.getAddress());
-    }
+
+    await logStepDeployOK('ExchangeMonthlyLimitsModule', await exchangeMonthlyLimitsModule.getAddress(), options);
 
     return exchangeMonthlyLimitsModule;
   }
@@ -85,10 +81,11 @@ export class ExchangeMonthlyLimitsModuleAPI {
     module: ExchangeMonthlyLimitsModule,
     identity: Identity,
     owner: EthersT.Signer,
-    chainConfig: ChainConfig,
+    walletResolver: WalletResolver,
     options: TxOptions,
   ) {
-    await throwIfNotOwner('ExchangeMonthlyLimitsModule', chainConfig, module, owner);
+    const provider = throwIfNoProvider(owner);
+    await throwIfNotOwner('ExchangeMonthlyLimitsModule', module, owner, provider, walletResolver);
 
     if (await module.connect(owner).isExchangeID(identity)) {
       return;
@@ -112,10 +109,11 @@ export class ExchangeMonthlyLimitsModuleAPI {
     module: ExchangeMonthlyLimitsModule,
     identity: Identity,
     owner: EthersT.Signer,
-    chainConfig: ChainConfig,
+    walletResolver: WalletResolver,
     options: TxOptions,
   ) {
-    await throwIfNotOwner('ExchangeMonthlyLimitsModule', chainConfig, module, owner);
+    const provider = throwIfNoProvider(owner);
+    await throwIfNotOwner('ExchangeMonthlyLimitsModule', module, owner, provider, walletResolver);
 
     if (!(await module.connect(owner).isExchangeID(identity))) {
       return;
@@ -134,21 +132,6 @@ export class ExchangeMonthlyLimitsModuleAPI {
       throw new FheERC3643Error(`Failed to remove exchange ID (Tx is not completed)`);
     }
   }
-  /*
-              await context.suite.compliance.callModuleFunction(
-                new ethers.Interface([
-                  'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-                ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 100]),
-                context.suite.complianceModule,
-              );
-
-*/
-  /*
-    function setExchangeMonthlyLimit(
-        address _exchangeID,
-        uint256 _newExchangeMonthlyLimit
-
-*/
 
   static async setExchangeMonthlyLimit(
     module: ExchangeMonthlyLimitsModule,
@@ -156,7 +139,6 @@ export class ExchangeMonthlyLimitsModuleAPI {
     exchangeId: Identity,
     newExchangeMonthlyLimit: bigint,
     signer: EthersT.Signer,
-    chainConfig: ChainConfig,
     options: TxOptions,
   ) {
     const exchangeIdAddress = await exchangeId.getAddress();
@@ -189,24 +171,4 @@ export class ExchangeMonthlyLimitsModuleAPI {
       throw new FheERC3643Error(`Failed to set the monthly limit`);
     }
   }
-
-  //   static async getExchangeLimits(
-  //     module: ExchangeMonthlyLimitsModule,
-  //     compliance: ModularCompliance,
-  //     identity: Identity,
-  //     chainConfig: ChainConfig,
-  //     options?: TxOptions,
-  //   ) {
-  //     const res = await module.connect(chainConfig.provider).getExchangeLimits(compliance, identity);
-
-  //     const output: Array<{ timeLimit: bigint; valueLimitFhevmHandle: bigint }> = [];
-  //     for (let i = 0; i < res.length; ++i) {
-  //       output.push({
-  //         timeLimit: res[i][0],
-  //         valueLimitFhevmHandle: res[i][1],
-  //       });
-  //     }
-
-  //     return output;
-  //   }
 }

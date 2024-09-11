@@ -1,37 +1,34 @@
 import { ChainConfig } from '../ChainConfig';
-import { FheERC3643Error, throwIfInvalidAddress, throwIfNotDeployed, throwIfNotOwner } from '../errors';
+import { throwIfInvalidAddress, throwIfNotOwner } from '../errors';
 import { TokenAPI } from '../TokenAPI';
 import { TxOptions } from '../types';
-import { defaultTxOptions } from '../utils';
 import { logStepMsg, logStepOK } from '../log';
 import { ExchangeMonthlyLimitsModuleAPI } from '../ExchangeMonthlyLimitsModuleAPI';
-import { fhevm } from 'hardhat';
 
 // npx hardhat --network fhevm token exchangemonthly:is-id --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --user alice
 export async function cmdTokenExchangeMonthlyIsId(
-  tokenAddress: string,
+  tokenAddressOrSaltOrNameOrSymbol: string,
   userAddressAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
+  throwIfInvalidAddress(userAddress);
 
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-  const userIdInfo = await TokenAPI.identityFromUser(token, userAddress, chainConfig.provider);
-  if (!userIdInfo) {
-    throw new FheERC3643Error(`user ${userAddressAlias} has no registered identity stored in token ${tokenAddress}`);
-  }
+  const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+  const userIdentity = await TokenAPI.userAddressAliasToIdentity(
+    token,
+    userAddressAlias,
+    chainConfig.provider,
+    chainConfig,
+  );
 
   const { module, compliance } = await ExchangeMonthlyLimitsModuleAPI.fromToken(token, chainConfig.provider, options);
 
   const ok = await ExchangeMonthlyLimitsModuleAPI.isExchangeID(
     module,
-    userIdInfo.identity,
+    userIdentity.identity,
     chainConfig.provider,
     options,
   );
@@ -51,29 +48,25 @@ export async function cmdTokenExchangeMonthlyAddId(
   userAddressAlias: string,
   exchangeMonthlyLimitsModuleOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   const exchangeMonthlyLimitsModuleOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(
     exchangeMonthlyLimitsModuleOwnerWalletAlias,
   );
-  const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-  const userIdInfo = await TokenAPI.identityFromUser(token, userAddress, chainConfig.provider);
-  if (!userIdInfo) {
-    throw new FheERC3643Error(`user ${userAddressAlias} has no registered identity stored in token ${tokenAddress}`);
-  }
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
+  const userIdentity = await TokenAPI.userAddressAliasToIdentity(
+    token,
+    userAddressAlias,
+    chainConfig.provider,
+    chainConfig,
+  );
 
   const { module, compliance } = await ExchangeMonthlyLimitsModuleAPI.fromToken(token, chainConfig.provider, options);
 
   await ExchangeMonthlyLimitsModuleAPI.addExchangeID(
     module,
-    userIdInfo.identity,
+    userIdentity.identity,
     exchangeMonthlyLimitsModuleOwnerWallet,
     chainConfig,
     options,
@@ -88,29 +81,25 @@ export async function cmdTokenExchangeMonthlyRemoveId(
   userAddressAlias: string,
   exchangeMonthlyLimitsModuleOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   const exchangeMonthlyLimitsModuleOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(
     exchangeMonthlyLimitsModuleOwnerWalletAlias,
   );
-  const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-  const userIdInfo = await TokenAPI.identityFromUser(token, userAddress, chainConfig.provider);
-  if (!userIdInfo) {
-    throw new FheERC3643Error(`user ${userAddressAlias} has no registered identity stored in token ${tokenAddress}`);
-  }
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
+  const userIdentity = await TokenAPI.userAddressAliasToIdentity(
+    token,
+    userAddressAlias,
+    chainConfig.provider,
+    chainConfig,
+  );
 
   const { module, compliance } = await ExchangeMonthlyLimitsModuleAPI.fromToken(token, chainConfig.provider, options);
 
   await ExchangeMonthlyLimitsModuleAPI.removeExchangeID(
     module,
-    userIdInfo.identity,
+    userIdentity.identity,
     exchangeMonthlyLimitsModuleOwnerWallet,
     chainConfig,
     options,
@@ -125,30 +114,30 @@ export async function cmdTokenExchangeMonthlyGetMonthlyCounter(
   investorIdAlias: string,
   exchangeIdAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
 
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-
-  const investorIdWalletAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(investorIdAlias);
-  const exchangeIdWalletAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(exchangeIdAlias);
-
-  const investorIdInfo = await TokenAPI.identityFromUser(token, investorIdWalletAddress, chainConfig.provider);
-  if (!investorIdInfo) {
-    throw new FheERC3643Error(`user ${investorIdAlias} has no registered identity stored in token ${tokenAddress}`);
-  }
-  const exchangeIdInfo = await TokenAPI.identityFromUser(token, exchangeIdWalletAddress, chainConfig.provider);
-  if (!exchangeIdInfo) {
-    throw new FheERC3643Error(`user ${exchangeIdAlias} has no registered identity stored in token ${tokenAddress}`);
-  }
+  const investorId = await TokenAPI.userAddressAliasToIdentity(
+    token,
+    investorIdAlias,
+    chainConfig.provider,
+    chainConfig,
+  );
+  const exchangeId = await TokenAPI.userAddressAliasToIdentity(
+    token,
+    exchangeIdAlias,
+    chainConfig.provider,
+    chainConfig,
+  );
 
   const { module, compliance } = await ExchangeMonthlyLimitsModuleAPI.fromToken(token, chainConfig.provider, options);
 
-  const enc = await module.getMonthlyCounter(compliance, exchangeIdInfo.identity, investorIdInfo.identity);
+  const enc = await module.getMonthlyCounter(compliance, exchangeId.identity, investorId.identity);
+  const value = await chainConfig.decrypt64(enc);
 
   return {
-    value: await fhevm.decrypt64(enc),
+    value,
     handle: enc,
   };
 }
@@ -160,38 +149,32 @@ export async function cmdTokenSetExchangeMonthlyLimit(
   newExchangeMonthlyLimit: bigint,
   complianceOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-
   const complianceOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(complianceOwnerWalletAlias);
-  const exchangeIdWalletAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(exchangeIdAlias);
 
-  const exchangeIdInfo = await TokenAPI.identityFromUser(token, exchangeIdWalletAddress, chainConfig.provider);
-  if (!exchangeIdInfo) {
-    throw new FheERC3643Error(`user ${exchangeIdAlias} has no registered identity stored in token ${tokenAddress}`);
-  }
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
+  const exchangeId = await TokenAPI.userAddressAliasToIdentity(
+    token,
+    exchangeIdAlias,
+    chainConfig.provider,
+    chainConfig,
+  );
 
   const { module, compliance } = await ExchangeMonthlyLimitsModuleAPI.fromToken(token, chainConfig.provider, options);
 
-  await throwIfNotOwner("token's Compliance", chainConfig, compliance, complianceOwnerWallet);
+  await throwIfNotOwner("token's Compliance", compliance, complianceOwnerWallet, chainConfig.provider, chainConfig);
 
   await ExchangeMonthlyLimitsModuleAPI.setExchangeMonthlyLimit(
     module,
     compliance,
-    exchangeIdInfo.identity,
+    exchangeId.identity,
     newExchangeMonthlyLimit,
     complianceOwnerWallet,
-    chainConfig,
     options,
   );
 
-  const ml = await module.getExchangeMonthlyLimit(compliance, exchangeIdInfo.identity);
+  const ml = await module.getExchangeMonthlyLimit(compliance, exchangeId.identity);
 
   return ml;
 }

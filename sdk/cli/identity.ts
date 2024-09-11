@@ -1,23 +1,19 @@
-import assert from 'assert';
 import { Identity } from '../artifacts';
 import { ChainConfig } from '../ChainConfig';
 import { FheERC3643Error, throwIfInvalidAddress, throwIfNotDeployed } from '../errors';
 import { IdentityAPI } from '../IdentityAPI';
 import { IdFactoryAPI } from '../IdFactoryAPI';
 import { logStepOK } from '../log';
-import { TREXFactoryAPI } from '../TREXFactory';
+import { TREXFactoryAPI } from '../TREXFactoryAPI';
 import { TxOptions } from '../types';
-import { defaultTxOptions } from '../utils';
 
 export async function cmdIdentityNew(
   managementWalletAlias: string,
   factorySourceAddress: string,
   factoryType: 'id' | 'trex',
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ): Promise<Identity> {
-  options = options ?? defaultTxOptions(1);
-
   const managementWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(managementWalletAlias);
 
   if (factoryType !== 'trex') {

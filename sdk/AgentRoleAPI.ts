@@ -1,8 +1,7 @@
 import { ethers as EthersT } from 'ethers';
 import { AgentRole, AgentRole__factory } from './artifacts';
-import { TxOptions } from './types';
+import { TxOptions, WalletResolver } from './types';
 import { txWait } from './utils';
-import { ChainConfig } from './ChainConfig';
 
 export class AgentRoleAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): AgentRole {
@@ -57,29 +56,14 @@ export class AgentRoleAPI {
     await txWait(agentRole.connect(owner).removeAgent(newAgent), options);
   }
 
-  static async searchAgentsInAgentRole(agentRole: EthersT.AddressLike, chainConfig: ChainConfig) {
-    const agentRoleAddress = await EthersT.resolveAddress(agentRole);
-    const agentRoleContract = AgentRole__factory.connect(agentRoleAddress).connect(chainConfig.provider);
-    const res: Array<{ address: string; index: number | undefined; names: string[] }> = [];
+  static async searchAgents(agentRole: AgentRole, walletResolver: WalletResolver) {
+    const res: Array<{ address: string; alias: { index: number; names: string[] } }> = [];
     for (let i = 0; i < 10; ++i) {
-      const address = chainConfig.getWalletAt(i, null).address;
-      if (await agentRoleContract.isAgent(address)) {
-        res.push({ address, index: i, names: chainConfig.getWalletNamesAt(i) });
+      const address = walletResolver.getWalletAt(i, null).address;
+      if (await agentRole.isAgent(address)) {
+        res.push({ address, alias: { index: i, names: walletResolver.getWalletNamesAt(i) } });
       }
     }
     return res;
-  }
-
-  static async searchOwnerInAgentRole(agentRole: EthersT.AddressLike, chainConfig: ChainConfig) {
-    const agentRoleAddress = await EthersT.resolveAddress(agentRole);
-    const agentRoleContract = AgentRole__factory.connect(agentRoleAddress).connect(chainConfig.provider);
-    const ownerAddress = await agentRoleContract.owner();
-    for (let i = 0; i < 10; ++i) {
-      const address = chainConfig.getWalletAt(i, null).address;
-      if (address == ownerAddress) {
-        return { address, index: i, names: chainConfig.getWalletNamesAt(i) };
-      }
-    }
-    return undefined;
   }
 }

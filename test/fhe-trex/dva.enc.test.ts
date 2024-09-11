@@ -1,3 +1,5 @@
+/* eslint-disable  @typescript-eslint/no-unused-expressions */
+
 import { expect } from 'chai';
 import hre, { ethers } from 'hardhat';
 
@@ -406,7 +408,7 @@ describe('DVATransferManager', () => {
     describe('when sequential approval is disabled', () => {
       describe('when all parties approve the transfer', () => {
         // OK
-        it('BBBB should complete', async () => {
+        it('should complete', async () => {
           const context = await deployFullSuiteWithNonSequentialTransfer();
 
           await context.suite.transferManager.connect(context.accounts.tokenAgent).approveTransfer(context.transferID);

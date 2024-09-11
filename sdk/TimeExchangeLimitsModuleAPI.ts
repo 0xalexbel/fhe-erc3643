@@ -6,14 +6,14 @@ import {
   TimeExchangeLimitsModule__factory,
   Token,
 } from './artifacts';
-import { TxOptions } from './types';
+import { CryptEngine, TxOptions, WalletResolver } from './types';
 import { txWait } from './utils';
-import { ChainConfig } from './ChainConfig';
 import { getLogEventArgs } from '../test/utils';
 import { FheERC3643Error, throwIfNotOwner } from './errors';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { ModuleAPI } from './ModuleAPI';
+import { logStepDeployOK } from './log';
 
 export class TimeExchangeLimitsModuleAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): TimeExchangeLimitsModule {
@@ -56,15 +56,14 @@ export class TimeExchangeLimitsModuleAPI {
     moduleImplementationOwner: EthersT.Signer,
     compliance: ModularCompliance,
     complianceOwner: EthersT.Signer,
-    chainConfig: ChainConfig,
+    runner: EthersT.ContractRunner,
     options: TxOptions,
   ) {
     const imodule = await ModuleAPI.deployNew('TimeExchangeLimitsModule', moduleImplementationOwner);
-    const timeExchangeLimitsModule = TimeExchangeLimitsModuleAPI.from(await imodule.getAddress(), chainConfig.provider);
+    const timeExchangeLimitsModule = TimeExchangeLimitsModuleAPI.from(await imodule.getAddress(), runner);
     await ModularComplianceAPI.addModule(compliance, timeExchangeLimitsModule, complianceOwner, options);
-    if (options?.progress) {
-      options.progress.contractDeployed('TimeExchangeLimitsModule', await timeExchangeLimitsModule.getAddress());
-    }
+
+    await logStepDeployOK('TimeExchangeLimitsModule', await timeExchangeLimitsModule.getAddress(), options);
 
     return timeExchangeLimitsModule;
   }
@@ -82,10 +81,11 @@ export class TimeExchangeLimitsModuleAPI {
     module: TimeExchangeLimitsModule,
     identity: Identity,
     owner: EthersT.Signer,
-    chainConfig: ChainConfig,
+    provider: EthersT.Provider,
+    walletResolver: WalletResolver,
     options: TxOptions,
   ) {
-    await throwIfNotOwner('TimeExchangeLimitsModule', chainConfig, module, owner);
+    await throwIfNotOwner('TimeExchangeLimitsModule', module, owner, provider, walletResolver);
 
     if (await module.connect(owner).isExchangeID(identity)) {
       return;
@@ -109,10 +109,11 @@ export class TimeExchangeLimitsModuleAPI {
     module: TimeExchangeLimitsModule,
     identity: Identity,
     owner: EthersT.Signer,
-    chainConfig: ChainConfig,
+    provider: EthersT.Provider,
+    walletResolver: WalletResolver,
     options: TxOptions,
   ) {
-    await throwIfNotOwner('TimeExchangeLimitsModule', chainConfig, module, owner);
+    await throwIfNotOwner('TimeExchangeLimitsModule', module, owner, provider, walletResolver);
 
     if (!(await module.connect(owner).isExchangeID(identity))) {
       return;
@@ -139,10 +140,10 @@ export class TimeExchangeLimitsModuleAPI {
     timeLimit: number,
     valueLimit: bigint,
     signer: EthersT.Signer,
-    chainConfig: ChainConfig,
+    cryptEngine: CryptEngine,
     options: TxOptions,
   ) {
-    const encValueLimit = await chainConfig.encrypt64(module, compliance, valueLimit);
+    const encValueLimit = await cryptEngine.encrypt64(module, compliance, valueLimit);
 
     const identityAddress = await identity.getAddress();
     const txReceipt = await txWait(
@@ -180,10 +181,10 @@ export class TimeExchangeLimitsModuleAPI {
     module: TimeExchangeLimitsModule,
     compliance: ModularCompliance,
     identity: Identity,
-    chainConfig: ChainConfig,
+    runner: EthersT.ContractRunner,
     options?: TxOptions,
   ) {
-    const res = await module.connect(chainConfig.provider).getExchangeLimits(compliance, identity);
+    const res = await module.connect(runner).getExchangeLimits(compliance, identity);
 
     const output: Array<{ timeLimit: bigint; valueLimitFhevmHandle: bigint }> = [];
     for (let i = 0; i < res.length; ++i) {

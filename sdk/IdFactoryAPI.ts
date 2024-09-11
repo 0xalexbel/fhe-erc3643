@@ -6,11 +6,10 @@ import {
   ImplementationAuthority__factory,
   Token,
 } from './artifacts';
-import { TxOptions } from './types';
+import { History, TxOptions, WalletResolver } from './types';
 import { IdentityImplementationAuthorityAPI } from './IdentityImplementationAuthorityAPI';
 import { isDeployed, txWait } from './utils';
 import { FheERC3643Error, FheERC3643InternalError, throwIfInvalidAddress, throwIfNotOwner } from './errors';
-import { ChainConfig } from './ChainConfig';
 import { getLogEventArgs } from '../test/utils';
 
 export class IdFactoryAPI {
@@ -41,7 +40,7 @@ export class IdFactoryAPI {
     idFactory: IdFactory,
     initialManagementKey: EthersT.AddressLike,
     deployer: EthersT.Signer,
-    chainConfig: ChainConfig,
+    history: History,
     options?: TxOptions,
   ) {
     const implementationAuthorityAddress = await idFactory.connect(deployer).implementationAuthority();
@@ -50,7 +49,7 @@ export class IdFactoryAPI {
       implementationAuthority,
       initialManagementKey,
       deployer,
-      chainConfig,
+      history,
       options,
     );
   }
@@ -62,10 +61,11 @@ export class IdFactoryAPI {
     currentTokenOwner: EthersT.Signer,
     futureTokenOwner: EthersT.AddressLike,
     futureTokenSalt: string,
-    chainConfig: ChainConfig,
+    provider: EthersT.Provider,
+    walletResolver: WalletResolver,
     options: TxOptions,
   ) {
-    throwIfNotOwner('IdFactory', chainConfig, idFactory, idFactoryOwner);
+    await throwIfNotOwner('IdFactory', idFactory, idFactoryOwner, provider, walletResolver);
 
     let txReceipt = await txWait(
       idFactory

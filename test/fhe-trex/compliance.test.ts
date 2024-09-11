@@ -1,3 +1,5 @@
+/* eslint-disable  @typescript-eslint/no-unused-expressions */
+
 import hre from 'hardhat';
 import { expect } from 'chai';
 import {
@@ -5,7 +7,7 @@ import {
   deploySuiteWithModularCompliancesFixture,
   deploySuiteWithModuleComplianceBoundToWallet,
 } from './fixtures/deploy-full-suite.fixture';
-import { encrypt64, tokenBurn } from '../utils';
+import { encrypt64 } from '../utils';
 
 describe('ModularCompliance', () => {
   describe('.init', () => {

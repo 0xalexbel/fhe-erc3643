@@ -1,7 +1,5 @@
 import { ethers as EthersT } from 'ethers';
 import {
-  ClaimTopicsRegistry,
-  ClaimTopicsRegistry__factory,
   IModule,
   IModule__factory,
   ModularCompliance,

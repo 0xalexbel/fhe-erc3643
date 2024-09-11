@@ -64,7 +64,7 @@ describe('VerifierUser', () => {
       };
 
       const tx = await aliceIdentity.connect(aliceWallet).execute(action.to, action.value, action.data);
-      expect(tx).to.emit(aliceIdentity, 'Executed');
+      await expect(tx).to.emit(aliceIdentity, 'Executed');
     });
   });
 
@@ -122,7 +122,7 @@ describe('VerifierUser', () => {
       };
 
       const tx = await aliceIdentity.connect(aliceWallet).execute(action.to, action.value, action.data);
-      expect(tx).to.emit(aliceIdentity, 'ExecutionFailed');
+      await expect(tx).to.emit(aliceIdentity, 'ExecutionFailed');
     });
   });
 });

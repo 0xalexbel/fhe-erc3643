@@ -7,43 +7,8 @@ import { FheERC3643Error, FheERC3643InternalError } from '../sdk/errors';
 import { logError } from './log';
 import type { HardhatFhevmRuntimeEnvironment as HardhatFhevmRuntimeEnvironmentType } from 'hardhat-fhevm/dist/src/common/HardhatFhevmRuntimeEnvironment';
 import type { HardhatFhevmInstance as HardhatFhevmInstanceType } from 'hardhat-fhevm';
-
-export type ChainConfigJSON = {
-  chain: {
-    url: string;
-    id: number;
-    name: string;
-  };
-  idFactories: string[];
-  trexFactories: string[];
-  identities: string[];
-  tokens: string[];
-  claimIssuers: string[];
-};
-
-// export type CryptEngineConfig = {
-//   decrypt64: ((handle: bigint) => Promise<bigint>) | undefined;
-//   encrypt64: (
-//     contract: EthersT.AddressLike,
-//     user: EthersT.AddressLike,
-//     value: number | bigint,
-//   ) => Promise<{
-//     handles: Uint8Array[];
-//     inputProof: Uint8Array;
-//   }>;
-// };
-
-export type ChainNetworkConfig = {
-  url: string;
-  chainId: number;
-  name: string;
-  accounts: {
-    mnemonic: string;
-    path: string;
-  };
-  //cryptEngine: CryptEngineConfig | undefined;
-  hardhatProvider: HardhatEthersProvider | undefined;
-};
+import { Token, TREXFactory } from '../types';
+import { ChainConfigJSON, ChainNetworkConfig, CryptEngine, History, WalletResolver } from './types';
 
 export const WALLETS: Array<{ index: number; names: string[] }> = [
   { index: 0, names: ['admin'] },
@@ -58,7 +23,7 @@ export const WALLETS: Array<{ index: number; names: string[] }> = [
   { index: 9, names: ['eve'] },
 ];
 
-export class ChainConfig {
+export class ChainConfig implements CryptEngine, History, WalletResolver {
   private _historyPath: string | undefined;
   private _chainId: number;
   private _network: string;
@@ -74,6 +39,7 @@ export class ChainConfig {
   private _identities: Array<string>;
   private _tokens: Array<string>;
   private _claimIssuers: Array<string>;
+  private _dvaTransferManagers: Array<string>;
   //private _cryptEngine: CryptEngineConfig | undefined;
   private _fhevm: HardhatFhevmRuntimeEnvironmentType;
   private _fhevmInstance: HardhatFhevmInstanceType | undefined;
@@ -102,6 +68,7 @@ export class ChainConfig {
     this._trexFactories = [];
     this._identities = [];
     this._claimIssuers = [];
+    this._dvaTransferManagers = [];
     this._tokens = [];
     this._historyPath = path;
     this._url = url;
@@ -141,6 +108,9 @@ export class ChainConfig {
         if (h.claimIssuers) {
           c._claimIssuers = [...h.claimIssuers];
         }
+        if (h.dvaTransferManagers) {
+          c._dvaTransferManagers = [...h.dvaTransferManagers];
+        }
       }
     }
 
@@ -175,6 +145,7 @@ export class ChainConfig {
     const hex = await this.provider.send('eth_getBalance', [account, 'latest']);
     return EthersT.getBigInt(hex);
   }
+
   public getWalletIndexFromName(name: string): number | undefined {
     for (let i = 0; i < WALLETS.length; ++i) {
       if (WALLETS[i].names.includes(name)) {
@@ -321,7 +292,34 @@ export class ChainConfig {
     }
   }
 
-  public async saveIdFactory(idFactory: string) {
+  public async saveContract(address: string, contractName: string) {
+    switch (contractName) {
+      case 'ClaimIssuer':
+        return this._saveClaimIssuer(address);
+      case 'IdFactory':
+        return this._saveIdFactory(address);
+      case 'Identity':
+        return this._saveIdentity(address);
+      case 'Token':
+        return this._saveToken(address);
+      case 'TREXFactory':
+        return this._saveTREXFactory(address);
+      case 'DVATransferManager':
+        return this._saveDVATransferManager(address);
+      default:
+        break;
+    }
+  }
+
+  private async _saveDVATransferManager(dvaTransferManager: string) {
+    if (!this._dvaTransferManagers.includes(dvaTransferManager)) {
+      this._dvaTransferManagers.push(dvaTransferManager);
+
+      await this.save();
+    }
+  }
+
+  private async _saveIdFactory(idFactory: string) {
     if (!this._idFactories.includes(idFactory)) {
       this._idFactories.push(idFactory);
 
@@ -329,7 +327,7 @@ export class ChainConfig {
     }
   }
 
-  public async saveIdentity(identity: string) {
+  private async _saveIdentity(identity: string) {
     if (!this._identities.includes(identity)) {
       this._identities.push(identity);
 
@@ -337,7 +335,7 @@ export class ChainConfig {
     }
   }
 
-  public async saveClaimIssuer(claimIssuer: string) {
+  private async _saveClaimIssuer(claimIssuer: string) {
     if (!this._claimIssuers.includes(claimIssuer)) {
       this._claimIssuers.push(claimIssuer);
 
@@ -345,7 +343,7 @@ export class ChainConfig {
     }
   }
 
-  public async saveToken(token: string) {
+  private async _saveToken(token: string) {
     if (!this._tokens.includes(token)) {
       this._tokens.push(token);
 
@@ -353,7 +351,7 @@ export class ChainConfig {
     }
   }
 
-  public async saveTREXFactory(trexFactory: string) {
+  private async _saveTREXFactory(trexFactory: string) {
     if (!this._trexFactories.includes(trexFactory)) {
       this._trexFactories.push(trexFactory);
 
@@ -372,6 +370,7 @@ export class ChainConfig {
       trexFactories: [...this._trexFactories],
       identities: [...this._identities],
       claimIssuers: [...this._claimIssuers],
+      dvaTransferManagers: [...this._dvaTransferManagers],
       tokens: [...this._tokens],
     };
   }
@@ -432,12 +431,197 @@ export class ChainConfig {
     if (this._fhevmInstance === undefined) {
       this._fhevmInstance = await this._fhevm.createInstance();
     }
-    const contractAddr = await EthersT.resolveAddress(contract);
-    const userAddr = await EthersT.resolveAddress(user);
+    const contractAddr = await EthersT.resolveAddress(contract, this.provider);
+    const userAddr = await EthersT.resolveAddress(user, this.provider);
     const input = this._fhevmInstance.createEncryptedInput(contractAddr, userAddr);
     input.add64(value);
     return input.encrypt();
 
     //return this._cryptEngine.encrypt64(contract, user, value);
   }
+
+  private async _resolveTREXFactoryAddress(trexFactory?: EthersT.AddressLike): Promise<string> {
+    if (!trexFactory) {
+      if (this._trexFactories.length === 0) {
+        throw new FheERC3643Error(`Unable to resolve TREX factory.`);
+      }
+      return this._trexFactories[this._trexFactories.length - 1];
+    }
+    return await EthersT.resolveAddress(trexFactory, this.provider);
+  }
+
+  private async _resolveLastTokenAddress(
+    runner?: EthersT.ContractRunner,
+    orAndFilter?: Array<{ name?: string; symbol?: string }>,
+  ): Promise<string> {
+    if (this._tokens.length === 0) {
+      throw new FheERC3643Error(`Unable to resolve TREX Token. No address stored in the history.`);
+    }
+    for (let i = this._tokens.length - 1; i >= 0; --i) {
+      const t = this._tokens[i];
+
+      // Must use dynamic import to avoid hardhat.config.ts issues
+      const imp = await import('./TokenAPI');
+      const infos = await imp.TokenAPI.getTokenInfos(t, runner ?? this.provider);
+      if (!orAndFilter) {
+        return t;
+      }
+      for (let j = 0; j < orAndFilter.length; ++j) {
+        const and = orAndFilter[j];
+        if (and.name && and.name !== infos.name) {
+          continue;
+        }
+        if (and.symbol && and.symbol !== infos.symbol) {
+          continue;
+        }
+        return t;
+      }
+    }
+    throw new FheERC3643Error(`Unable to resolve TREX Token.`);
+  }
+
+  public async resolveTREXFactory(
+    runner?: EthersT.ContractRunner,
+    options?: { trexFactoryAddress?: EthersT.AddressLike },
+  ): Promise<TREXFactory> {
+    const { trexFactoryAddress } = { ...options };
+    const addr = await this._resolveTREXFactoryAddress(trexFactoryAddress);
+    // Must use dynamic import to avoid hardhat.config.ts issues
+    const imp = await import('./TREXFactoryAPI');
+    return imp.TREXFactoryAPI.fromSafe(addr, runner ?? this.provider);
+  }
+
+  public async tryResolveToken(
+    addressOrSaltOrNameOrSymbol?:
+      | string
+      | EthersT.AddressLike
+      | { salt?: string; trexFactoryAddress?: EthersT.AddressLike },
+    runner?: EthersT.ContractRunner,
+  ): Promise<Token> {
+    if (!addressOrSaltOrNameOrSymbol) {
+      return this.resolveToken(runner);
+    }
+    // a token address ??
+    if (EthersT.isAddress(addressOrSaltOrNameOrSymbol)) {
+      const imp = await import('./TokenAPI');
+      return imp.TokenAPI.fromSafe(addressOrSaltOrNameOrSymbol, runner ?? this.provider);
+    }
+    if (EthersT.isAddressable(addressOrSaltOrNameOrSymbol)) {
+      const imp = await import('./TokenAPI');
+      return imp.TokenAPI.fromSafe(await addressOrSaltOrNameOrSymbol.getAddress(), runner ?? this.provider);
+    }
+    // try addresslike (ens)
+    if (addressOrSaltOrNameOrSymbol instanceof Promise) {
+      try {
+        const addr = await EthersT.resolveAddress(addressOrSaltOrNameOrSymbol, this.provider);
+        const imp = await import('./TokenAPI');
+        return imp.TokenAPI.fromSafe(addr, runner ?? this.provider);
+      } catch {}
+    }
+    if (typeof addressOrSaltOrNameOrSymbol === 'object') {
+      if ('trexFactoryAddress' in addressOrSaltOrNameOrSymbol || 'salt' in addressOrSaltOrNameOrSymbol) {
+        return this.resolveToken(runner, addressOrSaltOrNameOrSymbol);
+      }
+    }
+    // try name or symbol or salt (only)
+    if (typeof addressOrSaltOrNameOrSymbol === 'string') {
+      try {
+        // First try name or symbol
+        return this.resolveToken(runner, {
+          orAndfilter: [{ name: addressOrSaltOrNameOrSymbol }, { symbol: addressOrSaltOrNameOrSymbol }],
+        });
+      } catch {}
+      try {
+        // try salt
+        return this.resolveToken(runner, { salt: addressOrSaltOrNameOrSymbol });
+      } catch {}
+    }
+    throw new FheERC3643Error('Unable to resolve TREX Token address');
+  }
+
+  public async resolveToken(
+    runner?: EthersT.ContractRunner,
+    options?: {
+      orAndfilter?: Array<{ name?: string; symbol?: string }>;
+      salt?: string;
+      trexFactoryAddress?: EthersT.AddressLike;
+    },
+  ): Promise<Token> {
+    const { salt, trexFactoryAddress, orAndfilter } = { ...options };
+
+    if (!salt) {
+      if (trexFactoryAddress) {
+        throw new FheERC3643Error(
+          `Unable to resolve token address from TREX factory ${trexFactoryAddress} because no salt was specified`,
+        );
+      }
+      // No salt, take the last deployed token
+      const addr = await this._resolveLastTokenAddress(runner, orAndfilter);
+      const imp = await import('./TokenAPI');
+      return imp.TokenAPI.fromSafe(addr, runner ?? this.provider);
+    }
+
+    const trexFactory = await this.resolveTREXFactory(runner, { trexFactoryAddress });
+    const imp = await import('./TREXFactoryAPI');
+    const t = await imp.TREXFactoryAPI.tokenFromSalt(trexFactory, salt, runner ?? this.provider);
+    if (!t) {
+      throw new FheERC3643Error(
+        `Unable to resolve token address with salt ${salt} in TREX factory ${await trexFactory.getAddress()}`,
+      );
+    }
+    return t;
+  }
+
+  async findDVATransferManagerAddress(token: Token, dvaAddressOrAlias: string) {
+    // Try dva address first
+    for (let i = this._dvaTransferManagers.length - 1; i >= 0; --i) {
+      const dva = this._dvaTransferManagers[i];
+      if (dva.toLowerCase() === dvaAddressOrAlias.toLowerCase()) {
+        return dva;
+      }
+    }
+    // Try user address instead
+    const userAddress = this.loadAddressFromWalletIndexOrAliasOrAddress(dvaAddressOrAlias);
+    const imp = await import('./TokenAPI');
+    const userId = await imp.TokenAPI.userToIdentity(token, userAddress, this.provider);
+    if (!userId) {
+      return null;
+    }
+    const userIdAddress = await userId?.getAddress();
+    for (let i = this._dvaTransferManagers.length - 1; i >= 0; --i) {
+      const dva = this._dvaTransferManagers[i];
+      const id = await imp.TokenAPI.userToIdentity(token, dva, this.provider);
+      if (!id) {
+        continue;
+      }
+      if (userIdAddress === (await id.getAddress())) {
+        return dva;
+      }
+    }
+    return null;
+  }
 }
+
+// static async searchOwnerInAgentRole(agentRole: EthersT.AddressLike, chainConfig: ChainConfig) {
+//   const agentRoleAddress = await EthersT.resolveAddress(agentRole);
+//   const agentRoleContract = AgentRole__factory.connect(agentRoleAddress).connect(chainConfig.provider);
+//   const ownerAddress = await agentRoleContract.owner();
+//   for (let i = 0; i < 10; ++i) {
+//     const address = chainConfig.getWalletAt(i, null).address;
+//     if (address == ownerAddress) {
+//       return { address, index: i, names: chainConfig.getWalletNamesAt(i) };
+//     }
+//   }
+//   return undefined;
+// }
+
+// static async searchPurposeKeys(identity: Identity, purpose: number, chainConfig: ChainConfig) {
+//   const res: Array<{ address: string; index: number | undefined }> = [];
+//   for (let i = 0; i < 10; ++i) {
+//     const address = chainConfig.getWalletAt(i, null).address;
+//     if (await this.keyHasPurpose(identity, address, purpose)) {
+//       res.push({ address, index: i });
+//     }
+//   }
+//   return res;
+// }

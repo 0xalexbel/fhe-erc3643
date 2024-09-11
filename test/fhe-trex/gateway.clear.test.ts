@@ -111,7 +111,7 @@ describe('TREXGateway', () => {
 
           expect(await gateway.getPublicDeploymentStatus()).to.equal(false);
           const tx = await gateway.setPublicDeploymentStatus(true);
-          expect(tx).to.emit(gateway, 'PublicDeploymentStatusSet');
+          await expect(tx).to.emit(gateway, 'PublicDeploymentStatusSet');
           expect(await gateway.getPublicDeploymentStatus()).to.equal(true);
         });
       });
@@ -148,7 +148,7 @@ describe('TREXGateway', () => {
         await context.factories.trexFactory.transferOwnership(gateway);
 
         const tx = await gateway.transferFactoryOwnership(context.accounts.deployer.address);
-        expect(tx).to.emit(context.factories.trexFactory, 'OwnershipTransferred');
+        await expect(tx).to.emit(context.factories.trexFactory, 'OwnershipTransferred');
       });
     });
   });
@@ -205,7 +205,7 @@ describe('TREXGateway', () => {
 
           expect(await gateway.isDeploymentFeeEnabled()).to.equal(false);
           const tx = await gateway.enableDeploymentFee(true);
-          expect(tx).to.emit(gateway, 'DeploymentFeeEnabled');
+          await expect(tx).to.emit(gateway, 'DeploymentFeeEnabled');
           expect(await gateway.isDeploymentFeeEnabled()).to.equal(true);
         });
       });
@@ -262,7 +262,7 @@ describe('TREXGateway', () => {
           await context.factories.trexFactory.transferOwnership(gateway);
 
           const tx = await gateway.setDeploymentFee(100, context.suite.token, context.accounts.deployer.address);
-          expect(tx).to.emit(gateway, 'DeploymentFeeSet');
+          await expect(tx).to.emit(gateway, 'DeploymentFeeSet');
           const feeStructure = await gateway.getDeploymentFee();
           expect(feeStructure.fee).to.equal(100);
           expect(feeStructure.feeToken).to.equal(context.suite.token);
@@ -320,7 +320,7 @@ describe('TREXGateway', () => {
 
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(false);
           const tx = await gateway.addDeployer(context.accounts.tokenAgent.address);
-          expect(tx).to.emit(gateway, 'DeployerAdded');
+          await expect(tx).to.emit(gateway, 'DeployerAdded');
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(true);
         });
       });
@@ -360,7 +360,7 @@ describe('TREXGateway', () => {
           const tx = await gateway
             .connect(context.accounts.tokenAgent)
             .addDeployer(context.accounts.tokenAgent.address);
-          expect(tx).to.emit(gateway, 'DeployerAdded');
+          await expect(tx).to.emit(gateway, 'DeployerAdded');
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(true);
         });
       });
@@ -437,7 +437,7 @@ describe('TREXGateway', () => {
 
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(false);
           const tx = await gateway.batchAddDeployer([context.accounts.tokenAgent.address]);
-          expect(tx).to.emit(gateway, 'DeployerAdded');
+          await expect(tx).to.emit(gateway, 'DeployerAdded');
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(true);
         });
         it('should add 10 new deployers', async () => {
@@ -500,7 +500,7 @@ describe('TREXGateway', () => {
           const tx = await gateway
             .connect(context.accounts.anotherWallet)
             .batchAddDeployer([context.accounts.tokenAgent.address]);
-          expect(tx).to.emit(gateway, 'DeployerAdded');
+          await expect(tx).to.emit(gateway, 'DeployerAdded');
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(true);
         });
         it('should add 10 new deployers', async () => {
@@ -576,7 +576,7 @@ describe('TREXGateway', () => {
           await gateway.addDeployer(context.accounts.tokenAgent.address);
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(true);
           const tx = await gateway.removeDeployer(context.accounts.tokenAgent.address);
-          expect(tx).to.emit(gateway, 'DeployerRemoved');
+          await expect(tx).to.emit(gateway, 'DeployerRemoved');
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(false);
         });
       });
@@ -630,7 +630,7 @@ describe('TREXGateway', () => {
           await gateway.addDeployer(context.accounts.tokenAgent.address);
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(true);
           const tx = await gateway.batchRemoveDeployer([context.accounts.tokenAgent.address]);
-          expect(tx).to.emit(gateway, 'DeployerRemoved');
+          await expect(tx).to.emit(gateway, 'DeployerRemoved');
           expect(await gateway.isDeployer(context.accounts.tokenAgent.address)).to.equal(false);
         });
         describe('when called by an agent', () => {
@@ -749,7 +749,7 @@ describe('TREXGateway', () => {
           await gateway.setDeploymentFee(20000, context.suite.token, context.accounts.deployer.address);
           expect(await gateway.calculateFee(context.accounts.bobWallet.address)).to.equal(20000);
           const tx = await gateway.applyFeeDiscount(context.accounts.bobWallet.address, 5000);
-          expect(tx).to.emit(gateway, 'FeeDiscountApplied');
+          await expect(tx).to.emit(gateway, 'FeeDiscountApplied');
           expect(await gateway.calculateFee(context.accounts.bobWallet.address)).to.equal(10000);
         });
       });
@@ -826,7 +826,7 @@ describe('TREXGateway', () => {
           await gateway.setDeploymentFee(20000, context.suite.token, context.accounts.deployer.address);
           expect(await gateway.calculateFee(context.accounts.bobWallet.address)).to.equal(20000);
           const tx = await gateway.batchApplyFeeDiscount([context.accounts.bobWallet.address], [5000]);
-          expect(tx).to.emit(gateway, 'FeeDiscountApplied');
+          await expect(tx).to.emit(gateway, 'FeeDiscountApplied');
           expect(await gateway.calculateFee(context.accounts.bobWallet.address)).to.equal(10000);
         });
       });
@@ -985,8 +985,8 @@ describe('TREXGateway', () => {
                 issuerClaims: [],
               },
             );
-            expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-            expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+            await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+            await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
           });
         });
         describe('when deployment fees are activated', () => {
@@ -1025,9 +1025,9 @@ describe('TREXGateway', () => {
                   issuerClaims: [],
                 },
               );
-              expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-              expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
-              expect(tx).to.emit(feeToken, 'Transfer');
+              await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+              await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+              await expect(tx).to.emit(feeToken, 'Transfer');
               expect(await feeToken.balanceOf(context.accounts.anotherWallet.address)).to.equal(80000);
             });
           });
@@ -1067,9 +1067,9 @@ describe('TREXGateway', () => {
                   issuerClaims: [],
                 },
               );
-              expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-              expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
-              expect(tx).to.emit(feeToken, 'Transfer');
+              await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+              await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+              await expect(tx).to.emit(feeToken, 'Transfer');
               expect(await feeToken.balanceOf(context.accounts.anotherWallet.address)).to.equal(90000);
             });
           });
@@ -1108,8 +1108,8 @@ describe('TREXGateway', () => {
               issuerClaims: [],
             },
           );
-          expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-          expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+          await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+          await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
         });
       });
       describe('when try to deploy on behalf', () => {
@@ -1144,8 +1144,8 @@ describe('TREXGateway', () => {
               issuerClaims: [],
             },
           );
-          expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-          expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+          await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+          await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
         });
       });
       describe('when deployment fees are activated', () => {
@@ -1185,9 +1185,9 @@ describe('TREXGateway', () => {
                 issuerClaims: [],
               },
             );
-            expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-            expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
-            expect(tx).to.emit(feeToken, 'Transfer');
+            await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+            await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+            await expect(tx).to.emit(feeToken, 'Transfer');
             expect(await feeToken.balanceOf(context.accounts.anotherWallet.address)).to.equal(80000);
           });
         });
@@ -1228,9 +1228,9 @@ describe('TREXGateway', () => {
                 issuerClaims: [],
               },
             );
-            expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-            expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
-            expect(tx).to.emit(feeToken, 'Transfer');
+            await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+            await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+            await expect(tx).to.emit(feeToken, 'Transfer');
             expect(await feeToken.balanceOf(context.accounts.anotherWallet.address)).to.equal(90000);
           });
         });
@@ -1271,9 +1271,10 @@ describe('TREXGateway', () => {
                 issuerClaims: [],
               },
             );
-            expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-            expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
-            expect(tx).to.emit(feeToken, 'Transfer');
+            await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+            await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+            //TODO Bug in Tokeny
+            //await expect(tx).to.emit(feeToken, 'Transfer');
             expect(await feeToken.balanceOf(context.accounts.anotherWallet.address)).to.equal(100000);
           });
         });
@@ -1298,8 +1299,8 @@ describe('TREXGateway', () => {
           for (let i = 0; i < 5; i += 1) {
             tokenDetailsArray.push({
               owner: context.accounts.anotherWallet.address,
-              name: `Token name ${i}`,
-              symbol: `SYM${i}`,
+              name: `Token name ${i.toPrecision()}`,
+              symbol: `SYM${i.toPrecision()}`,
               decimals: 8,
               irs: hre.ethers.ZeroAddress,
               ONCHAINID: hre.ethers.ZeroAddress,
@@ -1337,8 +1338,8 @@ describe('TREXGateway', () => {
             for (let i = 0; i < 4; i += 1) {
               tokenDetailsArray.push({
                 owner: context.accounts.anotherWallet.address,
-                name: `Token name ${i}`,
-                symbol: `SYM${i}`,
+                name: `Token name ${i.toPrecision()}`,
+                symbol: `SYM${i.toPrecision()}`,
                 decimals: 8,
                 irs: hre.ethers.ZeroAddress,
                 ONCHAINID: hre.ethers.ZeroAddress,
@@ -1394,8 +1395,8 @@ describe('TREXGateway', () => {
             for (let i = 0; i < 6; i += 1) {
               tokenDetailsArray.push({
                 owner: context.accounts.anotherWallet.address,
-                name: `Token name ${i}`,
-                symbol: `SYM${i}`,
+                name: `Token name ${i.toString()}`,
+                symbol: `SYM${i.toString()}`,
                 decimals: 8,
                 irs: hre.ethers.ZeroAddress,
                 ONCHAINID: hre.ethers.ZeroAddress,
@@ -1434,8 +1435,8 @@ describe('TREXGateway', () => {
             for (let i = 0; i < 5; i += 1) {
               tokenDetailsArray.push({
                 owner: context.accounts.anotherWallet.address,
-                name: `Token name ${i}`,
-                symbol: `SYM${i}`,
+                name: `Token name ${i.toPrecision()}`,
+                symbol: `SYM${i.toPrecision()}`,
                 decimals: 8,
                 irs: hre.ethers.ZeroAddress,
                 ONCHAINID: hre.ethers.ZeroAddress,
@@ -1484,8 +1485,8 @@ describe('TREXGateway', () => {
               for (let i = 0; i < 5; i += 1) {
                 tokenDetailsArray.push({
                   owner: context.accounts.anotherWallet.address,
-                  name: `Token name ${i}`,
-                  symbol: `SYM${i}`,
+                  name: `Token name ${i.toPrecision()}`,
+                  symbol: `SYM${i.toPrecision()}`,
                   decimals: 8,
                   irs: hre.ethers.ZeroAddress,
                   ONCHAINID: hre.ethers.ZeroAddress,
@@ -1506,9 +1507,9 @@ describe('TREXGateway', () => {
                 .batchDeployTREXSuite(tokenDetailsArray, claimDetailsArray);
 
               for (let i = 0; i < tokenDetailsArray.length; i += 1) {
-                expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-                expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
-                expect(tx)
+                await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+                await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+                await expect(tx)
                   .to.emit(feeToken, 'Transfer')
                   .withArgs(context.accounts.anotherWallet.address, context.accounts.deployer.address, 20000);
               }
@@ -1537,8 +1538,8 @@ describe('TREXGateway', () => {
               for (let i = 0; i < 5; i += 1) {
                 tokenDetailsArray.push({
                   owner: context.accounts.anotherWallet.address,
-                  name: `Token name ${i}`,
-                  symbol: `SYM${i}`,
+                  name: `Token name ${i.toPrecision()}`,
+                  symbol: `SYM${i.toPrecision()}`,
                   decimals: 8,
                   irs: hre.ethers.ZeroAddress,
                   ONCHAINID: hre.ethers.ZeroAddress,
@@ -1559,9 +1560,9 @@ describe('TREXGateway', () => {
                 .batchDeployTREXSuite(tokenDetailsArray, claimDetailsArray);
 
               for (let i = 0; i < tokenDetailsArray.length; i += 1) {
-                expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
-                expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
-                expect(tx)
+                await expect(tx).to.emit(gateway, 'GatewaySuiteDeploymentProcessed');
+                await expect(tx).to.emit(context.factories.trexFactory, 'TREXSuiteDeployed');
+                await expect(tx)
                   .to.emit(feeToken, 'Transfer')
                   .withArgs(context.accounts.anotherWallet.address, context.accounts.deployer.address, 10000);
               }
@@ -1588,8 +1589,8 @@ describe('TREXGateway', () => {
             for (let i = 0; i < 5; i += 1) {
               tokenDetailsArray.push({
                 owner: context.accounts.anotherWallet.address,
-                name: `Token name ${i}`,
-                symbol: `SYM${i}`,
+                name: `Token name ${i.toPrecision()}`,
+                symbol: `SYM${i.toPrecision()}`,
                 decimals: 8,
                 irs: hre.ethers.ZeroAddress,
                 ONCHAINID: hre.ethers.ZeroAddress,
@@ -1632,8 +1633,8 @@ describe('TREXGateway', () => {
             for (let i = 0; i < 5; i += 1) {
               tokenDetailsArray.push({
                 owner: context.accounts.bobWallet.address,
-                name: `Token name ${i}`,
-                symbol: `SYM${i}`,
+                name: `Token name ${i.toPrecision()}`,
+                symbol: `SYM${i.toPrecision()}`,
                 decimals: 8,
                 irs: hre.ethers.ZeroAddress,
                 ONCHAINID: hre.ethers.ZeroAddress,

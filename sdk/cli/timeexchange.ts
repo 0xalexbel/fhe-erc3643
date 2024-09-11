@@ -1,16 +1,7 @@
-import assert from 'assert';
 import { ChainConfig } from '../ChainConfig';
-import {
-  FheERC3643Error,
-  throwIfInvalidAddress,
-  throwIfInvalidUint32,
-  throwIfNotDeployed,
-  throwIfNotOwner,
-} from '../errors';
-import { SupplyLimitModuleAPI } from '../SupplyLimitModuleAPI';
+import { FheERC3643Error, throwIfInvalidUint32, throwIfNotOwner } from '../errors';
 import { TokenAPI } from '../TokenAPI';
 import { TxOptions } from '../types';
-import { defaultTxOptions } from '../utils';
 import { logStepMsg, logStepOK } from '../log';
 import { TimeExchangeLimitsModuleAPI } from '../TimeExchangeLimitsModuleAPI';
 
@@ -18,17 +9,12 @@ export async function cmdTokenTimeExchangeIsId(
   tokenAddress: string,
   userAddressAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-  const userIdInfo = await TokenAPI.identityFromUser(token, userAddress, chainConfig.provider);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
+  const userIdInfo = await TokenAPI.userToIdentityAndCountry(token, userAddress, chainConfig.provider);
   if (!userIdInfo) {
     throw new FheERC3643Error(`user ${userAddressAlias} has no registered identity stored in token ${tokenAddress}`);
   }
@@ -51,20 +37,15 @@ export async function cmdTokenTimeExchangeAddId(
   userAddressAlias: string,
   timeExchangeLimitsModuleOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   const timeExchangeLimitsModuleOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(
     timeExchangeLimitsModuleOwnerWalletAlias,
   );
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-  const userIdInfo = await TokenAPI.identityFromUser(token, userAddress, chainConfig.provider);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
+  const userIdInfo = await TokenAPI.userToIdentityAndCountry(token, userAddress, chainConfig.provider);
   if (!userIdInfo) {
     throw new FheERC3643Error(`user ${userAddressAlias} has no registered identity stored in token ${tokenAddress}`);
   }
@@ -75,6 +56,7 @@ export async function cmdTokenTimeExchangeAddId(
     module,
     userIdInfo.identity,
     timeExchangeLimitsModuleOwnerWallet,
+    chainConfig.provider,
     chainConfig,
     options,
   );
@@ -87,20 +69,15 @@ export async function cmdTokenTimeExchangeRemoveId(
   userAddressAlias: string,
   timeExchangeLimitsModuleOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   const timeExchangeLimitsModuleOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(
     timeExchangeLimitsModuleOwnerWalletAlias,
   );
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-  const userIdInfo = await TokenAPI.identityFromUser(token, userAddress, chainConfig.provider);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
+  const userIdInfo = await TokenAPI.userToIdentityAndCountry(token, userAddress, chainConfig.provider);
   if (!userIdInfo) {
     throw new FheERC3643Error(`user ${userAddressAlias} has no registered identity stored in token ${tokenAddress}`);
   }
@@ -111,6 +88,7 @@ export async function cmdTokenTimeExchangeRemoveId(
     module,
     userIdInfo.identity,
     timeExchangeLimitsModuleOwnerWallet,
+    chainConfig.provider,
     chainConfig,
     options,
   );
@@ -125,26 +103,22 @@ export async function cmdTokenTimeExchangeSetLimits(
   valueLimit: bigint,
   complianceOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   const complianceOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(complianceOwnerWalletAlias);
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  throwIfInvalidAddress(tokenAddress);
   throwIfInvalidUint32(timeLimit);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
 
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-  const userIdInfo = await TokenAPI.identityFromUser(token, userAddress, chainConfig.provider);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
+  const userIdInfo = await TokenAPI.userToIdentityAndCountry(token, userAddress, chainConfig.provider);
   if (!userIdInfo) {
     throw new FheERC3643Error(`user ${userAddressAlias} has no registered identity stored in token ${tokenAddress}`);
   }
 
   const { module, compliance } = await TimeExchangeLimitsModuleAPI.fromToken(token, chainConfig.provider, options);
 
-  await throwIfNotOwner("token's Compliance", chainConfig, compliance, complianceOwnerWallet);
+  await throwIfNotOwner("token's Compliance", compliance, complianceOwnerWallet, chainConfig.provider, chainConfig);
 
   await TimeExchangeLimitsModuleAPI.setExchangeLimits(
     module,
@@ -167,17 +141,12 @@ export async function cmdTokenTimeExchangeGetLimits(
   tokenAddress: string,
   userAddressAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(2);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-  const userIdInfo = await TokenAPI.identityFromUser(token, userAddress, chainConfig.provider);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
+  const userIdInfo = await TokenAPI.userToIdentityAndCountry(token, userAddress, chainConfig.provider);
   if (!userIdInfo) {
     throw new FheERC3643Error(`user ${userAddressAlias} has no registered identity stored in token ${tokenAddress}`);
   }
@@ -214,32 +183,3 @@ export async function cmdTokenTimeExchangeGetLimits(
 
   return clearLimits;
 }
-
-// export async function cmdTokenSetSupplyLimit(
-//   tokenAddress: string,
-//   amount: bigint,
-//   complianceOwnerWalletAlias: string,
-//   chainConfig: ChainConfig,
-//   options?: TxOptions,
-// ) {
-//   options = options ?? defaultTxOptions(1);
-
-//   throwIfInvalidAddress(tokenAddress);
-//   await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-//   const complianceOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(complianceOwnerWalletAlias);
-
-//   const token = TokenAPI.from(tokenAddress, chainConfig.provider);
-//   const { module, compliance } = await SupplyLimitModuleAPI.fromToken(token, chainConfig.provider, options);
-
-//   await throwIfNotOwner("token's Compliance", chainConfig, compliance, complianceOwnerWallet);
-
-//   return await SupplyLimitModuleAPI.setSupplyLimit(
-//     module,
-//     compliance,
-//     amount,
-//     complianceOwnerWallet,
-//     chainConfig,
-//     options,
-//   );
-// }

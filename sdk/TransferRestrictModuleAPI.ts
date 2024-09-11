@@ -2,11 +2,11 @@ import { ethers as EthersT } from 'ethers';
 import { ModularCompliance, Token, TransferRestrictModule, TransferRestrictModule__factory } from './artifacts';
 import { TxOptions } from './types';
 import { txWait } from './utils';
-import { ChainConfig } from './ChainConfig';
 import { FheERC3643Error } from './errors';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { ModuleAPI } from './ModuleAPI';
+import { logStepDeployOK } from './log';
 
 export class TransferRestrictModuleAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): TransferRestrictModule {
@@ -50,15 +50,15 @@ export class TransferRestrictModuleAPI {
     compliance: ModularCompliance,
     complianceOwner: EthersT.Signer,
     allowedAddresses: Array<EthersT.AddressLike>,
-    chainConfig: ChainConfig,
+    runner: EthersT.ContractRunner,
     options: TxOptions,
   ) {
     const imodule = await ModuleAPI.deployNew('TransferRestrictModule', moduleImplementationOwner);
-    const transferRestrictModule = TransferRestrictModuleAPI.from(await imodule.getAddress(), chainConfig.provider);
+    const transferRestrictModule = TransferRestrictModuleAPI.from(await imodule.getAddress(), runner);
     await ModularComplianceAPI.addModule(compliance, transferRestrictModule, complianceOwner, options);
-    if (options?.progress) {
-      options.progress.contractDeployed('TransferRestrictModule', await transferRestrictModule.getAddress());
-    }
+
+    await logStepDeployOK('TransferRestrictModule', await transferRestrictModule.getAddress(), options);
+
     await TransferRestrictModuleAPI.batchAllow(
       transferRestrictModule,
       compliance,

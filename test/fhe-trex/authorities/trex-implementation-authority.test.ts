@@ -213,7 +213,7 @@ describe('TrexImplementationAuthority', () => {
         };
 
         const tx = await otherTrexImplementationAuthority.fetchVersion(versionStruct);
-        expect(tx).to.emit(otherTrexImplementationAuthority, 'TREXVersionFetched');
+        await expect(tx).to.emit(otherTrexImplementationAuthority, 'TREXVersionFetched');
       });
     });
   });
@@ -492,7 +492,7 @@ describe('TrexImplementationAuthority', () => {
             await trexImplementationAuthority.setIAFactory(implementationAuthorityFactory);
 
             const tx = await trexImplementationAuthority.changeImplementationAuthority(token, ethers.ZeroAddress);
-            expect(tx).to.emit(trexImplementationAuthority, 'ImplementationAuthorityChanged');
+            await expect(tx).to.emit(trexImplementationAuthority, 'ImplementationAuthorityChanged');
           });
         });
       });

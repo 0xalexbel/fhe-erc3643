@@ -4,10 +4,12 @@ import { ChainConfig } from './ChainConfig';
 import { TxOptions } from './types';
 
 export type LogOptions = {
-  indent: string;
+  indent?: string;
+  stderr?: boolean;
+  quiet?: boolean;
 };
 
-export function logBox(msg: string) {
+export function logBox(msg: string, options?: LogOptions) {
   const left = ' '.repeat(1);
   const inner = ' '.repeat(2);
 
@@ -21,84 +23,95 @@ export function logBox(msg: string) {
 
   const box = top + middle + bottom;
 
-  console.log('');
-  console.log(box);
-  console.log('');
+  _log('', options);
+  _log(box, options);
+  _log('', options);
 }
 
-export function logTrace(msg: string, options?: LogOptions) {
-  const indent = options ? options.indent : '';
-  console.log(`${indent}\x1b[32m✔ hardhat-fhevm:\x1b[0m ${msg}`);
+function _log(msg: string, options?: LogOptions) {
+  if (options?.quiet === true) {
+    return;
+  }
+  const indent = options?.indent ? options.indent : '';
+  if (options?.stderr) {
+    //console.log('ERROR');
+    console.error(indent + msg);
+  } else {
+    console.log(indent + msg);
+  }
+}
+
+export function logDimErrorWithPrefix(prefix: string, msg: string, options?: LogOptions) {
+  // const indent = options ? options.indent : '';
+  // console.log(`${indent}\x1b[32m✔ hardhat-fhevm:\x1b[0m ${msg}`);
+  _log(`\x1b[31m${prefix}\x1b[0m\x1b[31m${msg}\x1b[0m`, options);
+}
+
+export function logDimWithGreenPrefix(prefix: string, msg: string, options?: LogOptions) {
+  // const indent = options ? options.indent : '';
+  // console.log(`${indent}\x1b[32m✔ hardhat-fhevm:\x1b[0m ${msg}`);
+  _log(`\x1b[32m${prefix}\x1b[0m\x1b[2m${msg}\x1b[0m`, options);
 }
 
 export function logDim(msg: string, options?: LogOptions) {
-  const indent = options ? options.indent : '';
-  console.log(`${indent}\x1b[2m${msg}\x1b[0m`);
+  // const indent = options ? options.indent : '';
+  // console.log(`${indent}\x1b[2m${msg}\x1b[0m`);
+  _log(`\x1b[2m${msg}\x1b[0m`, options);
 }
 
-export function logError(msg: string) {
-  console.log(`\x1b[31m${msg}\x1b[0m`);
+export function logMsg(msg: string, options?: LogOptions) {
+  // const indent = options ? options.indent : '';
+  // console.log(`${indent}${msg}`);
+  _log(msg, options);
 }
 
-export function logOK(msg: string) {
-  console.log(`\x1b[32m${msg}\x1b[0m`);
+export function logError(msg: string, options?: LogOptions) {
+  _log(`\x1b[31m${msg}\x1b[0m`, options);
+}
+
+export function logOK(msg: string, options?: LogOptions) {
+  _log(`\x1b[32m${msg}\x1b[0m`, options);
+}
+
+export function logInfo(msg: string, options?: LogOptions) {
+  _log(`\x1b[33m${msg}\x1b[0m`, options);
 }
 
 export function logStepOK(msg: string, options: TxOptions | undefined) {
-  if (options?.mute !== true) {
-    logOK(msg);
-  } else {
-    if (options.progress) {
-      options.progress.logStep(msg);
-    }
+  if (options?.progress && options.quiet !== true) {
+    options.progress.logStep(msg);
   }
 }
 
 export function logStepInfo(msg: string, options: TxOptions | undefined) {
-  if (options?.mute !== true) {
-    logInfo(msg);
-  } else {
-    if (options.progress) {
-      options.progress.logStep(msg);
-    }
+  if (options?.progress && options.quiet !== true) {
+    options.progress.logStep(msg);
   }
 }
 
 export function logStepMsg(msg: string, options: TxOptions | undefined) {
-  if (options?.mute !== true) {
-    logMsg(msg);
-  } else {
-    if (options.progress) {
-      options.progress.logStep(msg);
-    }
+  if (options?.progress && options.quiet !== true) {
+    options.progress.logStep(msg);
   }
 }
 
 export function logStepError(msg: string, options: TxOptions | undefined) {
-  if (options?.mute !== true) {
-    logError(msg);
-  } else {
-    if (options.progress) {
-      options.progress.logStep(msg);
-    }
+  if (options?.progress && options.quiet !== true) {
+    options.progress.logStepError(msg);
   }
 }
 
-export function logInfo(msg: string) {
-  console.log(`\x1b[33m${msg}\x1b[0m`);
-}
-
-export function logMsg(msg: string, options?: LogOptions) {
-  const indent = options ? options.indent : '';
-  console.log(`${indent}${msg}`);
-}
-
-export async function logDeployOK(name: string, contract: EthersT.AddressLike) {
+export async function logStepDeployOK(name: string, contract: EthersT.AddressLike, options: TxOptions | undefined) {
   const addr = await EthersT.resolveAddress(contract);
-  logOK(`${name} was successfully deployed at address ${addr}`);
+  logStepOK(`${name} was successfully deployed at address ${addr}`, options);
 }
 
-export async function logContractOwner(name: string, contract: EthersT.BaseContract, chainConfig: ChainConfig) {
+export async function logContractOwner(
+  name: string,
+  contract: EthersT.BaseContract,
+  chainConfig: ChainConfig,
+  options: TxOptions | undefined,
+) {
   if (!contract.runner) {
     return;
   }
@@ -109,8 +122,84 @@ export async function logContractOwner(name: string, contract: EthersT.BaseContr
   }
   const alias = chainConfig.getWalletNamesFromAddress(ownerAddress);
   if (alias.length > 0) {
-    logMsg(`${name} owner is '${alias[0]}' (address: ${ownerAddress})`);
+    logMsg(`${name} owner is '${alias[0]}' (address: ${ownerAddress})`, options);
   } else {
-    logMsg(`${name} owner is ${ownerAddress}`);
+    logMsg(`${name} owner is ${ownerAddress}`, options);
   }
+}
+
+export class Progress {
+  public step: number;
+  public stepCount: number;
+  public columnWidth: number;
+  public ignore: boolean;
+  public percentage: boolean;
+  public tostderr: boolean;
+
+  constructor(n: number) {
+    this.stepCount = n;
+    this.step = 1;
+    this.columnWidth = 40;
+    this.ignore = false;
+    this.percentage = true;
+    this.tostderr = true;
+  }
+
+  pause() {
+    this.ignore = true;
+  }
+  unpause() {
+    this.ignore = false;
+  }
+
+  logStepDeployed(contractName: string, address: string, options?: LogOptions) {
+    const str = `${contractName}:`.padEnd(this.columnWidth);
+    this.logStep(`${str}${address}`, options);
+  }
+
+  log(msg: string, error: boolean, options?: LogOptions) {
+    if (!this.ignore) {
+      if (options) {
+        options.stderr = this.tostderr;
+      } else {
+        options = { stderr: this.tostderr };
+      }
+      if (this.percentage) {
+        const perc = `${Math.ceil((100 * this.step) / this.stepCount)}`.padStart(3, ' ') + '%';
+        if (error) {
+          logDimErrorWithPrefix(`${perc} `, msg, options);
+        } else {
+          logDimWithGreenPrefix(`${perc} `, msg, options);
+        }
+      } else {
+        if (error) {
+          logDimErrorWithPrefix(`${this.step}/${this.stepCount}`, msg, options);
+        } else {
+          logDimWithGreenPrefix(`${this.step}/${this.stepCount}`, msg, options);
+        }
+      }
+    }
+  }
+
+  logStep(msg: string, options?: LogOptions) {
+    if (!this.ignore) {
+      this.log(msg, false, options);
+      this.step += 1;
+    }
+  }
+
+  logStepError(msg: string, options?: LogOptions) {
+    if (!this.ignore) {
+      this.log(msg, true, options);
+      this.step += 1;
+    }
+  }
+}
+
+export function defaultTxOptions(steps: number): TxOptions {
+  return {
+    progress: new Progress(steps),
+    confirms: 1,
+    quiet: false,
+  };
 }

@@ -313,9 +313,9 @@ describe('TREXFactory', () => {
               issuerClaims: [[hre.ethers.keccak256(hre.ethers.toUtf8Bytes('DEMO_TOPIC'))]],
             },
           );
-          expect(tx).to.emit(trexFactory, 'TREXSuiteDeployed');
-          expect(tx).to.emit(identityFactory, 'Deployed');
-          expect(tx).to.emit(identityFactory, 'TokenLinked');
+          await expect(tx).to.emit(trexFactory, 'TREXSuiteDeployed');
+          await expect(tx).to.emit(identityFactory, 'Deployed');
+          await expect(tx).to.emit(identityFactory, 'TokenLinked');
         });
       });
     });
@@ -387,7 +387,7 @@ describe('TREXFactory', () => {
         const newIdFactory = await idFactoryContractFactory.deploy(identityImplementationAuthority);
 
         const tx = await trexFactory.setIdFactory(newIdFactory);
-        expect(tx).to.emit(trexFactory, 'IdFactorySet');
+        await expect(tx).to.emit(trexFactory, 'IdFactorySet');
         expect(await trexFactory.getIdFactory()).to.equal(newIdFactory);
       });
     });

@@ -1,4 +1,3 @@
-import { ethers as EthersT } from 'ethers';
 import { ethers } from 'hardhat';
 import { deploySuiteWithModularCompliancesFixture } from '../fixtures/deploy-full-suite.fixture';
 import { expectTokenBalanceToEq, expectTokenTransferToEq, tokenBalanceOf } from '../../utils';

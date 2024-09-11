@@ -1,12 +1,13 @@
+import { ethers as EthersT } from 'ethers';
+import { AgentRoleAPI } from '../AgentRoleAPI';
 import { ChainConfig } from '../ChainConfig';
 import { FheERC3643Error, throwIfInvalidAddress, throwIfNotDeployed } from '../errors';
 import { IdentityAPI } from '../IdentityAPI';
 import { logStepInfo, logStepMsg, logStepOK } from '../log';
 import { TokenAPI } from '../TokenAPI';
 import { TokenConfig } from '../TokenConfig';
-import { TREXFactoryAPI } from '../TREXFactory';
+import { TREXFactoryAPI } from '../TREXFactoryAPI';
 import { TxOptions } from '../types';
-import { defaultTxOptions } from '../utils';
 
 export type NewTokenResult = {
   token: string;
@@ -25,10 +26,8 @@ export async function cmdTokenNew(
   salt: string,
   trexFactoryOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   const trexFactoryOwnerWallet =
     trexFactoryOwnerWalletAlias === 'auto'
       ? await chainConfig.getOwnerWallet(trexFactoryAddress)
@@ -70,7 +69,7 @@ export async function cmdTokenNew(
     options,
   );
 
-  if (options?.mute !== true) {
+  if (options?.quiet !== true) {
     console.log(
       JSON.stringify(
         { ...res, config: c },
@@ -92,20 +91,16 @@ export async function cmdTokenAddIdentity(
   country: bigint,
   tokenIRAgentWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   throwIfInvalidAddress(identityAddress);
   await throwIfNotDeployed('User identity', chainConfig.provider, identityAddress);
 
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userWalletAlias);
   const agentWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(tokenIRAgentWalletAlias);
 
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
   const identity = IdentityAPI.from(identityAddress, chainConfig.provider);
 
   const alreadyStored = await TokenAPI.hasIdentity(token, userAddress, identity, country, chainConfig.provider);
@@ -133,19 +128,14 @@ export async function cmdTokenAddIdentity(
 ////////////////////////////////////////////////////////////////////////////////
 
 export async function cmdTokenBalance(
-  tokenAddress: string,
+  addressOrSaltOrNameOrSymbol: string,
   userWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userWalletAlias);
 
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
+  const token = await chainConfig.tryResolveToken(addressOrSaltOrNameOrSymbol);
 
   const encBalance = await TokenAPI.balanceOf(token, userAddress, chainConfig.provider, options);
 
@@ -153,12 +143,11 @@ export async function cmdTokenBalance(
 
   const balance = await chainConfig.decrypt64(encBalance);
 
-  logStepMsg(
-    `Balance of ${userWalletAlias} is : ${balance.toString()} (fhevm handle=${encBalance.toString()})`,
-    options,
-  );
+  logStepMsg(`Balance of ${userWalletAlias} = ${balance.toString()}`, options);
 
   return {
+    token,
+    userAddress,
     fhevmHandle: encBalance,
     value: balance,
   };
@@ -166,13 +155,12 @@ export async function cmdTokenBalance(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-export async function cmdTokenTotalSupply(tokenAddress: string, chainConfig: ChainConfig, options?: TxOptions) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
+export async function cmdTokenTotalSupply(
+  addressOrSaltOrNameOrSymbol: string,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const token = await chainConfig.tryResolveToken(addressOrSaltOrNameOrSymbol);
 
   const fhevmHandle = await TokenAPI.totalSupply(token, chainConfig.provider, options);
 
@@ -180,9 +168,10 @@ export async function cmdTokenTotalSupply(tokenAddress: string, chainConfig: Cha
 
   const value = await chainConfig.decrypt64(fhevmHandle);
 
-  logStepMsg(`Token total supply is : ${value.toString()} (fhevm handle=${fhevmHandle.toString()})`, options);
+  logStepMsg(`Token total supply = ${value.toString()}`, options);
 
   return {
+    token,
     fhevmHandle,
     value,
   };
@@ -196,13 +185,8 @@ export async function cmdTokenMint(
   tokenAgentWalletAlias: string,
   amount: bigint,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userWalletAlias);
   const tokenAgentWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(tokenAgentWalletAlias);
 
@@ -214,15 +198,7 @@ export async function cmdTokenMint(
 
   const encAmount = await chainConfig.encrypt64(await token.getAddress(), userAddress, amount);
 
-  await TokenAPI.mint(
-    token,
-    userAddress,
-    encAmount.handles[0],
-    encAmount.inputProof,
-    tokenAgentWallet,
-    chainConfig,
-    options,
-  );
+  await TokenAPI.mint(token, userAddress, encAmount.handles[0], encAmount.inputProof, tokenAgentWallet, options);
 
   const enc = await TokenAPI.balanceOf(token, userAddress, chainConfig.provider, options);
   const balance = await chainConfig.decrypt64(enc);
@@ -239,13 +215,8 @@ export async function cmdTokenBurn(
   tokenAgentWalletAlias: string,
   amount: bigint,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userWalletAlias);
   const tokenAgentWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(tokenAgentWalletAlias);
 
@@ -266,16 +237,12 @@ export async function cmdTokenFreeze(
   tokenAgentWalletAlias: string,
   amount: bigint,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userWalletAlias);
   const tokenAgentWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(tokenAgentWalletAlias);
 
+  // const token = await chainConfig.tryResolveToken(tokenAddress);
   const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
 
   if (!(await token.isAgent(tokenAgentWallet))) {
@@ -300,13 +267,8 @@ export async function cmdTokenTransfer(
   toAddressAlias: string,
   amount: bigint,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const fromWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(fromWalletAlias);
   const toAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(toAddressAlias);
 
@@ -323,13 +285,8 @@ export async function cmdTokenUnfreeze(
   tokenAgentWalletAlias: string,
   amount: bigint,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
   const tokenAgentWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(tokenAgentWalletAlias);
 
@@ -355,16 +312,11 @@ export async function cmdTokenFrozenTokens(
   tokenAddress: string,
   userAddressAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const userAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(userAddressAlias);
 
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
 
   const encValue = await TokenAPI.getFrozenTokens(token, userAddress, chainConfig.provider, options);
 
@@ -389,13 +341,8 @@ export async function cmdTokenPause(
   tokenAddress: string,
   tokenAgentWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const tokenAgentWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(tokenAgentWalletAlias);
 
   const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
@@ -428,13 +375,8 @@ export async function cmdTokenUnpause(
   tokenAddress: string,
   tokenAgentWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
   const tokenAgentWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(tokenAgentWalletAlias);
 
   const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
@@ -463,12 +405,7 @@ export async function cmdTokenUnpause(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-export async function cmdTokenIsPaused(tokenAddress: string, chainConfig: ChainConfig, options?: TxOptions) {
-  options = options ?? defaultTxOptions(1);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
+export async function cmdTokenIsPaused(tokenAddress: string, chainConfig: ChainConfig, options: TxOptions) {
   const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
 
   const isPaused = await TokenAPI.paused(token, chainConfig.provider, options);
@@ -480,6 +417,186 @@ export async function cmdTokenIsPaused(tokenAddress: string, chainConfig: ChainC
   }
 
   return isPaused;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+export async function cmdTokenApprove(
+  tokenAddressOrSaltOrNameOrSymbol: string | undefined,
+  allowanceOwnerWalletAlias: string,
+  spenderAddressAlias: string,
+  amount: bigint,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const allowanceOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(allowanceOwnerWalletAlias);
+  const spenderAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(spenderAddressAlias);
+
+  const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+
+  const encAmount = await chainConfig.encrypt64(await token.getAddress(), allowanceOwnerWallet.address, amount);
+
+  await TokenAPI.approve(
+    token,
+    spenderAddress,
+    encAmount.handles[0],
+    encAmount.inputProof,
+    allowanceOwnerWallet,
+    options,
+  );
+
+  return {
+    token,
+    tokenAddress: await token.getAddress(),
+    ownerAddress: allowanceOwnerWallet.address,
+    ownerAlias: allowanceOwnerWalletAlias,
+    spenderAddress,
+    spenderAddressAlias,
+    fhevmHandle: EthersT.toBigInt(encAmount.handles[0]),
+    value: amount,
+  };
+}
+
+export async function cmdTokenIncreaseAllowance(
+  tokenAddressOrSaltOrNameOrSymbol: string | undefined,
+  allowanceOwnerWalletAlias: string,
+  spenderAddressAlias: string,
+  addedValue: bigint,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const allowanceOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(allowanceOwnerWalletAlias);
+  const spenderAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(spenderAddressAlias);
+
+  const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+
+  const encAddedValue = await chainConfig.encrypt64(await token.getAddress(), allowanceOwnerWallet.address, addedValue);
+
+  await TokenAPI.increaseAllowance(
+    token,
+    spenderAddress,
+    encAddedValue.handles[0],
+    encAddedValue.inputProof,
+    allowanceOwnerWallet,
+    options,
+  );
+
+  return {
+    token,
+    tokenAddress: await token.getAddress(),
+    ownerAddress: allowanceOwnerWallet.address,
+    ownerAlias: allowanceOwnerWalletAlias,
+    spenderAddress,
+    spenderAddressAlias,
+    fhevmHandle: EthersT.toBigInt(encAddedValue.handles[0]),
+    value: addedValue,
+  };
+}
+
+export async function cmdTokenDecreaseAllowance(
+  tokenAddressOrSaltOrNameOrSymbol: string | undefined,
+  allowanceOwnerWalletAlias: string,
+  spenderAddressAlias: string,
+  substractedValue: bigint,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const allowanceOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(allowanceOwnerWalletAlias);
+  const spenderAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(spenderAddressAlias);
+
+  const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+
+  const encSubstractedValue = await chainConfig.encrypt64(
+    await token.getAddress(),
+    allowanceOwnerWallet.address,
+    substractedValue,
+  );
+
+  await TokenAPI.decreaseAllowance(
+    token,
+    spenderAddress,
+    encSubstractedValue.handles[0],
+    encSubstractedValue.inputProof,
+    allowanceOwnerWallet,
+    options,
+  );
+
+  return {
+    token,
+    tokenAddress: await token.getAddress(),
+    ownerAddress: allowanceOwnerWallet.address,
+    ownerAlias: allowanceOwnerWalletAlias,
+    spenderAddress,
+    spenderAddressAlias,
+    fhevmHandle: EthersT.toBigInt(encSubstractedValue.handles[0]),
+    value: substractedValue,
+  };
+}
+
+export async function cmdTokenAllowance(
+  tokenAddressOrSaltOrNameOrSymbol: string | undefined,
+  allowanceOwnerWalletAlias: string,
+  spenderAddressAlias: string,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const allowanceOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(allowanceOwnerWalletAlias);
+  const spenderAddress = chainConfig.loadAddressFromWalletIndexOrAliasOrAddress(spenderAddressAlias);
+
+  const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+
+  const enc = await TokenAPI.allowance(token, spenderAddress, allowanceOwnerWallet, chainConfig.provider);
+
+  logStepMsg(`Decrypting allowance of ${allowanceOwnerWalletAlias}...`, options);
+
+  const allowance = await chainConfig.decrypt64(enc);
+
+  logStepMsg(`Allowance of ${allowanceOwnerWalletAlias} to ${spenderAddressAlias} = ${allowance.toString()}`, options);
+
+  return {
+    token,
+    tokenAddress: await token.getAddress(),
+    ownerAddress: allowanceOwnerWallet.address,
+    ownerAlias: allowanceOwnerWalletAlias,
+    spenderAddress,
+    spenderAddressAlias,
+    fhevmHandle: enc,
+    value: allowance,
+  };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+export async function cmdTokenShow(
+  tokenAddressOrSaltOrNameOrSymbol: string | undefined,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+
+  const [name, symbol, identity, identityRegistry, owner, address] = await Promise.all([
+    token.name(),
+    token.symbol(),
+    token.onchainID(),
+    token.identityRegistry(),
+    token.owner(),
+    token.getAddress(),
+  ]);
+
+  const agentRole = AgentRoleAPI.from(address, chainConfig.provider);
+  const agents = await AgentRoleAPI.searchAgents(agentRole, chainConfig);
+
+  return {
+    token,
+    address,
+    name,
+    symbol,
+    identity,
+    identityRegistry,
+    owner,
+    ownerAlias: chainConfig.getWalletNamesFromAddress(owner),
+    agents,
+  };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

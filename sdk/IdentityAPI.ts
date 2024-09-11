@@ -1,9 +1,8 @@
-import { ethers as EthersT, id } from 'ethers';
+import { ethers as EthersT } from 'ethers';
 import { TxOptions } from './types';
-import { ClaimIssuer, Identity, Identity__factory, Ownable2Step__factory, Ownable__factory } from './artifacts';
+import { ClaimIssuer, Identity, Identity__factory } from './artifacts';
 import { txWait } from './utils';
 import { ClaimIssuerAPI, SignedClaim } from './ClaimIssuerAPI';
-import { ChainConfig } from './ChainConfig';
 import { FheERC3643Error } from './errors';
 
 export const KEY_PURPOSE_MANAGEMENT = 1;
@@ -331,16 +330,5 @@ export class IdentityAPI {
       return EthersT.ZeroHash;
     }
     return EthersT.keccak256(EthersT.AbiCoder.defaultAbiCoder().encode(['address'], [keyAddr]));
-  }
-
-  static async searchPurposeKeys(identity: Identity, purpose: number, chainConfig: ChainConfig) {
-    const res: Array<{ address: string; index: number | undefined }> = [];
-    for (let i = 0; i < 10; ++i) {
-      const address = chainConfig.getWalletAt(i, null).address;
-      if (await this.keyHasPurpose(identity, address, purpose)) {
-        res.push({ address, index: i });
-      }
-    }
-    return res;
   }
 }

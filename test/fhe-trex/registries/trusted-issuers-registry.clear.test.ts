@@ -40,7 +40,7 @@ describe('TrustedIssuersRegistry', () => {
 
           const claimTopics = await trustedIssuersRegistry.getTrustedIssuerClaimTopics(claimIssuerContract);
           // to avoid ts readonly exception in ethers.js
-          let not_readonly_claimTopics = claimTopics.map(v => v);
+          const not_readonly_claimTopics = claimTopics.map(v => v);
 
           await expect(
             trustedIssuersRegistry.connect(deployer).addTrustedIssuer(claimIssuerContract, not_readonly_claimTopics),

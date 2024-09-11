@@ -63,7 +63,7 @@ const _interceptTxError = async (
   }
   try {
     await tx.wait();
-  } catch (e) {}
+  } catch {}
   const error = await _getTxError(tx.hash, hre);
   throw error;
 };

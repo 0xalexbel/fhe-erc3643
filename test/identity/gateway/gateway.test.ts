@@ -1,3 +1,5 @@
+/* eslint-disable  @typescript-eslint/no-unused-vars */
+
 import hre from 'hardhat';
 import { expect } from 'chai';
 import { deployFactoryFixture } from '../fixtures';
@@ -738,7 +740,7 @@ describe('Gateway', () => {
         const signature = await carolWallet.signMessage(hre.ethers.getBytes(digest));
         await gateway.revokeSignature(signature);
         const tx = await gateway.approveSignature(signature);
-        expect(tx).to.emit(gateway, 'SignatureApproved').withArgs(signature);
+        await expect(tx).to.emit(gateway, 'SignatureApproved').withArgs(signature);
       });
     });
   });
@@ -792,7 +794,7 @@ describe('Gateway', () => {
         const gatewayAddress = await gateway.getAddress();
         await idFactoryContract.transferOwnership(gatewayAddress);
         const tx = await gateway.approveSigner(bobWallet.address);
-        expect(tx).to.emit(gateway, 'SignerApproved').withArgs(bobWallet.address);
+        await expect(tx).to.emit(gateway, 'SignerApproved').withArgs(bobWallet.address);
       });
     });
   });
@@ -844,7 +846,7 @@ describe('Gateway', () => {
         const gatewayAddress = await gateway.getAddress();
         await idFactoryContract.transferOwnership(gatewayAddress);
         const tx = await gateway.revokeSigner(bobWallet.address);
-        expect(tx).to.emit(gateway, 'SignerRevoked').withArgs(bobWallet.address);
+        await expect(tx).to.emit(gateway, 'SignerRevoked').withArgs(bobWallet.address);
       });
     });
   });
@@ -900,7 +902,7 @@ describe('Gateway', () => {
               bobWallet.address,
             ]),
           );
-        expect(tx).to.emit(idFactoryContract, 'TokenFactoryAdded').withArgs(bobWallet.address);
+        await expect(tx).to.emit(idFactoryContract, 'TokenFactoryAdded').withArgs(bobWallet.address);
       });
     });
   });

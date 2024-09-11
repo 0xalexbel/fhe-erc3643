@@ -1,4 +1,3 @@
-import assert from 'assert';
 import { ethers as EthersT } from 'ethers';
 import {
   ClaimTopicsRegistry,
@@ -20,13 +19,13 @@ import {
   TrustedIssuersRegistry,
   TrustedIssuersRegistry__factory,
 } from './artifacts';
-import { TREXConfig, TxOptions } from './types';
+import { History, TREXConfig, TxOptions } from './types';
 import { isDeployed, txWait } from './utils';
 import { IdentityImplementationAuthorityAPI } from './IdentityImplementationAuthorityAPI';
-import { TREXFactoryAPI } from './TREXFactory';
+import { TREXFactoryAPI } from './TREXFactoryAPI';
 import { IdFactoryAPI } from './IdFactoryAPI';
-import { ChainConfig } from './ChainConfig';
-import { FheERC3643Error, throwIfNotOwner } from './errors';
+import { FheERC3643Error } from './errors';
+import { logStepDeployOK } from './log';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,9 +35,7 @@ async function _deployNewToken(deployer: EthersT.Signer, options?: TxOptions): P
   const token: Token = await tokenFactory.connect(deployer).deploy();
   await token.waitForDeployment();
 
-  if (options?.progress) {
-    options.progress.contractDeployed('Token', await token.getAddress());
-  }
+  await logStepDeployOK('Token', await token.getAddress(), options);
 
   return token;
 }
@@ -54,9 +51,7 @@ async function _deployNewClaimTopicsRegistry(
   const registry: ClaimTopicsRegistry = await registryFactory.connect(deployer).deploy();
   await registry.waitForDeployment();
 
-  if (options?.progress) {
-    options.progress.contractDeployed('ClaimTopicsRegistry', await registry.getAddress());
-  }
+  await logStepDeployOK('ClaimTopicsRegistry', await registry.getAddress(), options);
 
   return registry;
 }
@@ -69,9 +64,7 @@ async function _deployNewIdentityRegistry(deployer: EthersT.Signer, options?: Tx
   const registry: IdentityRegistry = await registryFactory.connect(deployer).deploy();
   await registry.waitForDeployment();
 
-  if (options?.progress) {
-    options.progress.contractDeployed('IdentityRegistry', await registry.getAddress());
-  }
+  await logStepDeployOK('IdentityRegistry', await registry.getAddress(), options);
 
   return registry;
 }
@@ -87,9 +80,7 @@ async function _deployNewIdentityRegistryStorage(
   const registry: IdentityRegistryStorage = await registryFactory.connect(deployer).deploy();
   await registry.waitForDeployment();
 
-  if (options?.progress) {
-    options.progress.contractDeployed('IdentityRegistryStorage', await registry.getAddress());
-  }
+  await logStepDeployOK('IdentityRegistryStorage', await registry.getAddress(), options);
 
   return registry;
 }
@@ -105,9 +96,7 @@ async function _deployNewTrustedIssuersRegistry(
   const registry: TrustedIssuersRegistry = await registryFactory.connect(deployer).deploy();
   await registry.waitForDeployment();
 
-  if (options?.progress) {
-    options.progress.contractDeployed('TrustedIssuersRegistry', await registry.getAddress());
-  }
+  await logStepDeployOK('TrustedIssuersRegistry', await registry.getAddress(), options);
 
   return registry;
 }
@@ -120,9 +109,7 @@ async function _deployNewModularCompliance(deployer: EthersT.Signer, options?: T
   const contract: ModularCompliance = await factory.connect(deployer).deploy();
   await contract.waitForDeployment();
 
-  if (options?.progress) {
-    options.progress.contractDeployed('ModularCompliance', await contract.getAddress());
-  }
+  await logStepDeployOK('ModularCompliance', await contract.getAddress(), options);
 
   return contract;
 }
@@ -169,9 +156,7 @@ export class TREXImplementationAuthorityAPI {
 
     await authority.waitForDeployment();
 
-    if (options?.progress) {
-      options.progress.contractDeployed('TREXImplementationAuthority', await authority.getAddress());
-    }
+    await logStepDeployOK('TREXImplementationAuthority', await authority.getAddress(), options);
 
     let tokenImplementation = contracts.tokenImplementation;
     let ctrImplementation = contracts.claimTopicsRegistryImplementation;
@@ -233,9 +218,7 @@ export class TREXImplementationAuthorityAPI {
 
     await txWait(authority.connect(deployer).addAndUseTREXVersion(version, cstr), options);
 
-    if (options?.progress) {
-      options.progress.contractDeployed('TREXImplementationAuthority', await authority.getAddress());
-    }
+    await logStepDeployOK('TREXImplementationAuthority', await authority.getAddress(), options);
 
     return authority;
   }
@@ -244,7 +227,7 @@ export class TREXImplementationAuthorityAPI {
     authority: TREXImplementationAuthority | undefined,
     idFactory: IdFactory | undefined,
     deployer: EthersT.Signer,
-    chainConfig: ChainConfig,
+    history: History,
     options: TxOptions,
   ) {
     if (!authority) {
@@ -252,7 +235,7 @@ export class TREXImplementationAuthorityAPI {
     }
 
     if (!idFactory) {
-      const o = await IdentityImplementationAuthorityAPI.deployNewIdFactory(deployer, chainConfig, options);
+      const o = await IdentityImplementationAuthorityAPI.deployNewIdFactory(deployer, history, options);
       idFactory = o.idFactory;
     }
 
@@ -265,20 +248,14 @@ export class TREXImplementationAuthorityAPI {
     await txWait(idFactory.connect(deployer).addTokenFactory(TRexFactory), options);
 
     const TRexFactoryAddress = await TRexFactory.getAddress();
-    if (options?.progress) {
-      options.progress.contractDeployed('TREXFactory', TRexFactoryAddress);
-    }
-    await chainConfig.saveTREXFactory(TRexFactoryAddress);
+
+    await logStepDeployOK('TREXFactory', TRexFactoryAddress, options);
+    await history.saveContract(TRexFactoryAddress, 'TREXFactory');
 
     return TRexFactory;
   }
 
-  static async loadOrDeployTREXConfig(
-    config: TREXConfig,
-    owner: EthersT.Signer,
-    chainConfig: ChainConfig,
-    options: TxOptions,
-  ) {
+  static async loadOrDeployTREXConfig(config: TREXConfig, owner: EthersT.Signer, history: History, options: TxOptions) {
     let idFactory: IdFactory;
     let authority: TREXImplementationAuthority;
     let factory: TREXFactory;
@@ -311,7 +288,7 @@ export class TREXImplementationAuthorityAPI {
       idFactory = await IdentityImplementationAuthorityAPI.loadOrDeployIdFactory(
         config.idFactory,
         owner,
-        chainConfig,
+        history,
         options,
       );
 
@@ -321,7 +298,7 @@ export class TREXImplementationAuthorityAPI {
         authority,
         idFactory,
         owner,
-        chainConfig,
+        history,
         options,
       );
     }

@@ -1,5 +1,6 @@
 import { ethers as EthersT } from 'ethers';
 import { TxOptions } from './types';
+import { Progress } from './log';
 
 export async function txWait(
   promise: Promise<EthersT.ContractTransactionResponse>,
@@ -62,46 +63,6 @@ export async function getTxError(txHash: string, provider: EthersT.Provider) {
   }
 }
 
-export class Progress {
-  public step: number;
-  public stepCount: number;
-  public columnWidth: number;
-  public ignore: boolean;
-  public percentage: boolean;
-
-  constructor(n: number) {
-    this.stepCount = n;
-    this.step = 1;
-    this.columnWidth = 40;
-    this.ignore = false;
-    this.percentage = true;
-  }
-
-  pause() {
-    this.ignore = true;
-  }
-  unpause() {
-    this.ignore = false;
-  }
-
-  contractDeployed(contractName: string, address: string) {
-    const str = `${contractName}:`.padEnd(this.columnWidth);
-    this.logStep(`${str}${address}`);
-  }
-
-  logStep(msg: string) {
-    if (!this.ignore) {
-      if (this.percentage) {
-        const perc = `${Math.ceil((100 * this.step) / this.stepCount)}`.padStart(3, ' ') + '%';
-        console.log(`\x1b[32m${perc}\x1b[0m \x1b[2m${msg}\x1b[0m`);
-      } else {
-        console.log(`\x1b[33m${this.step}/\x1b[0m\x1b[32m${this.stepCount}\x1b[0m \x1b[2m${msg}\x1b[0m`);
-      }
-      this.step += 1;
-    }
-  }
-}
-
 export async function isDeployed(provider: EthersT.Provider, address: string | undefined): Promise<string | undefined> {
   if (!address) {
     return undefined;
@@ -140,11 +101,4 @@ export async function getContractOwner(contract: string | EthersT.Addressable, r
   } catch {
     return undefined;
   }
-}
-
-export function defaultTxOptions(steps: number): TxOptions {
-  return {
-    progress: new Progress(steps),
-    confirms: 1,
-  };
 }

@@ -10,3 +10,12 @@ export async function importCliModule(moduleName: string, hre: HardhatRuntimeEnv
   }
   return await import('../../sdk/cli/' + moduleName);
 }
+
+export async function importTypes(hre: HardhatRuntimeEnvironment) {
+  try {
+    await import('../../types');
+  } catch (e) {
+    logBox("Running 'hardhat typechain' needed. Please wait...");
+    await hre.run('typechain');
+  }
+}

@@ -19,9 +19,10 @@ import { IdentityRegistryStorageAPI } from './IdentityRegistryStorageAPI';
 import { ClaimTopicsRegistryAPI } from './ClaimTopicsRegistryAPI';
 import { TrustedIssuersRegistryAPI } from './TrustedIssuersRegistryAPI';
 import { IdentityAPI } from './IdentityAPI';
-import { TxOptions } from './types';
-import { logDeployOK, logStepOK } from './log';
+import { TxOptions, WalletResolver } from './types';
+import { logStepDeployOK, logStepOK } from './log';
 import { txWait } from './utils';
+import { FheERC3643Error, throwIfNoProvider, throwIfNotAgent } from './errors';
 
 export class IdentityRegistryAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): IdentityRegistry {
@@ -75,28 +76,28 @@ export class IdentityRegistryAPI {
     const ctr_proxy = await ctr_factory.deploy(trexImplementationAuthority);
     await ctr_proxy.waitForDeployment();
     const ctr = ClaimTopicsRegistry__factory.connect(await ctr_proxy.getAddress()).connect(deployer);
-    await logDeployOK('ClaimTopicsRegistryProxy', ctr);
+    await logStepDeployOK('ClaimTopicsRegistryProxy', ctr, options);
 
     // TrustedIssuersRegistryProxy
     const tir_factory = new TrustedIssuersRegistryProxy__factory().connect(deployer);
     const tir_proxy = await tir_factory.deploy(trexImplementationAuthority);
     await tir_proxy.waitForDeployment();
     const tir = TrustedIssuersRegistry__factory.connect(await tir_proxy.getAddress()).connect(deployer);
-    await logDeployOK('TrustedIssuersRegistryProxy', tir);
+    await logStepDeployOK('TrustedIssuersRegistryProxy', tir, options);
 
     // IdentityRegistryStorageProxy
     const irs_factory = new IdentityRegistryStorageProxy__factory().connect(deployer);
     const irs_proxy = await irs_factory.deploy(trexImplementationAuthority);
     await irs_proxy.waitForDeployment();
     const irs = IdentityRegistryStorage__factory.connect(await irs_proxy.getAddress()).connect(deployer);
-    await logDeployOK('IdentityRegistryStorageProxy', irs);
+    await logStepDeployOK('IdentityRegistryStorageProxy', irs, options);
 
     // IdentityRegistryProxy
     const ir_factory = new IdentityRegistryProxy__factory().connect(deployer);
     const ir_proxy = await ir_factory.deploy(trexImplementationAuthority, tir, ctr, irs);
     await ir_proxy.waitForDeployment();
     const ir = IdentityRegistry__factory.connect(await ir_proxy.getAddress()).connect(deployer);
-    await logDeployOK('IdentityRegistryProxy', ir);
+    await logStepDeployOK('IdentityRegistryProxy', ir, options);
 
     await txWait(irs.connect(deployer).bindIdentityRegistry(ir), options);
 
@@ -136,5 +137,66 @@ export class IdentityRegistryAPI {
       identityRegistryStorage: irs,
       identityRegistry: ir,
     };
+  }
+
+  static async throwIfAlreadyRegistered(
+    identityRegistry: IdentityRegistry,
+    userAddress: EthersT.AddressLike,
+    country: bigint,
+    provider: EthersT.Provider,
+    walletResolver: WalletResolver,
+  ) {
+    const ir = identityRegistry.connect(provider);
+    if (await ir.contains(userAddress)) {
+      const c = await ir.investorCountry(userAddress);
+      if (c !== country) {
+        const userAddrStr = await EthersT.resolveAddress(userAddress, provider);
+        const userAddressName = walletResolver.toWalletStringFromAddress(userAddrStr);
+
+        throw new FheERC3643Error(`${userAddressName} identity is already stored with a different country`);
+      }
+    }
+  }
+
+  static async isVerified(
+    identityRegistry: IdentityRegistry,
+    userAddress: EthersT.AddressLike,
+    provider: EthersT.Provider,
+  ) {
+    const ir = identityRegistry.connect(provider);
+    return await ir.isVerified(userAddress);
+  }
+
+  static async registerIdentity(
+    identityRegistry: IdentityRegistry,
+    userAddress: EthersT.AddressLike,
+    identity: Identity,
+    country: bigint,
+    identityRegistryAgent: EthersT.Signer,
+    walletResolver: WalletResolver,
+    options: TxOptions,
+  ) {
+    const provider = throwIfNoProvider(identityRegistryAgent);
+
+    await throwIfNotAgent(
+      identityRegistryAgent,
+      "Token's identity registry",
+      identityRegistry,
+      provider,
+      walletResolver,
+    );
+
+    await IdentityRegistryAPI.throwIfAlreadyRegistered(
+      identityRegistry,
+      userAddress,
+      country,
+      provider,
+      walletResolver,
+    );
+
+    await txWait(
+      identityRegistry.connect(identityRegistryAgent).registerIdentity(userAddress, identity, country),
+      options,
+    );
   }
 }

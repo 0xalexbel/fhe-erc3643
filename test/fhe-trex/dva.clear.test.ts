@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
+
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
@@ -65,7 +67,6 @@ describe('DVATransferManager', () => {
       context.accounts.bobWallet.address,
       ethers.toBigInt(encHundredHandle),
     );
-
     await context.suite.transferManager
       .connect(context.accounts.aliceWallet)
       .initiateTransfer(
@@ -159,7 +160,7 @@ describe('DVATransferManager', () => {
                 context.accounts.anotherWallet.address,
                 context.accounts.bobWallet.address,
               ]);
-            tx.wait(1);
+            await tx.wait(1);
 
             const approvalCriteria = await context.suite.transferManager.getApprovalCriteria(context.suite.token);
 

@@ -40,7 +40,7 @@ export class ModuleAPI {
 
     if (options) {
       if (options.progress) {
-        options.progress.contractDeployed(moduleContractName, moduleImplementatonAddress);
+        options.progress.logStepDeployed(moduleContractName, moduleImplementatonAddress);
       }
     }
 
@@ -54,7 +54,7 @@ export class ModuleAPI {
 
     if (options) {
       if (options.progress) {
-        options.progress.contractDeployed('ModuleProxy', proxyAddress);
+        options.progress.logStepDeployed('ModuleProxy', proxyAddress);
       }
     }
 

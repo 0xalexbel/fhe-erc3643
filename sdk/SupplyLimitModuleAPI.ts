@@ -1,14 +1,13 @@
 import { ethers as EthersT } from 'ethers';
 import { ModularCompliance, SupplyLimitModule, SupplyLimitModule__factory, Token } from './artifacts';
-import { TxOptions } from './types';
-import { defaultTxOptions, txWait } from './utils';
-import { ChainConfig } from './ChainConfig';
+import { CryptEngine, TxOptions } from './types';
+import { txWait } from './utils';
 import { getLogEventArgs } from '../test/utils';
 import { FheERC3643Error } from './errors';
-import { logStepMsg } from './log';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { ModuleAPI } from './ModuleAPI';
+import { logStepDeployOK } from './log';
 
 export class SupplyLimitModuleAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): SupplyLimitModule {
@@ -47,21 +46,22 @@ export class SupplyLimitModuleAPI {
     compliance: ModularCompliance,
     complianceOwner: EthersT.Signer,
     initialLimit: bigint,
-    chainConfig: ChainConfig,
+    cryptEngine: CryptEngine,
+    runner: EthersT.ContractRunner,
     options: TxOptions,
   ) {
     const imodule = await ModuleAPI.deployNew('SupplyLimitModule', moduleImplementationOwner);
-    const supplyLimitModule = SupplyLimitModuleAPI.from(await imodule.getAddress(), chainConfig.provider);
+    const supplyLimitModule = SupplyLimitModuleAPI.from(await imodule.getAddress(), runner);
     await ModularComplianceAPI.addModule(compliance, supplyLimitModule, complianceOwner, options);
-    if (options?.progress) {
-      options.progress.contractDeployed('SupplyLimitModule', await supplyLimitModule.getAddress());
-    }
+
+    await logStepDeployOK('SupplyLimitModule', await supplyLimitModule.getAddress(), options);
+
     await SupplyLimitModuleAPI.setSupplyLimit(
       supplyLimitModule,
       compliance,
       initialLimit,
       complianceOwner,
-      chainConfig,
+      cryptEngine,
       options,
     );
 
@@ -71,10 +71,10 @@ export class SupplyLimitModuleAPI {
   static async getSupplyLimit(
     module: SupplyLimitModule,
     compliance: ModularCompliance,
-    chainConfig: ChainConfig,
+    runner: EthersT.ContractRunner,
     options?: TxOptions,
   ) {
-    const encSupplyLimit = await module.connect(chainConfig.provider).getSupplyLimit(compliance);
+    const encSupplyLimit = await module.connect(runner).getSupplyLimit(compliance);
     return encSupplyLimit;
   }
 
@@ -83,10 +83,10 @@ export class SupplyLimitModuleAPI {
     compliance: ModularCompliance,
     amount: bigint,
     signer: EthersT.Signer,
-    chainConfig: ChainConfig,
+    cryptEngine: CryptEngine,
     options: TxOptions,
   ) {
-    const encAmount = await chainConfig.encrypt64(module, compliance, amount);
+    const encAmount = await cryptEngine.encrypt64(module, compliance, amount);
 
     const txReceipt = await txWait(
       compliance

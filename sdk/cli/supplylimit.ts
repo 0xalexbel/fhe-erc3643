@@ -3,16 +3,10 @@ import { throwIfInvalidAddress, throwIfNotDeployed, throwIfNotOwner } from '../e
 import { SupplyLimitModuleAPI } from '../SupplyLimitModuleAPI';
 import { TokenAPI } from '../TokenAPI';
 import { TxOptions } from '../types';
-import { defaultTxOptions } from '../utils';
 import { logStepMsg } from '../log';
 
-export async function cmdTokenGetSupplyLimit(tokenAddress: string, chainConfig: ChainConfig, options?: TxOptions) {
-  options = options ?? defaultTxOptions(2);
-
-  throwIfInvalidAddress(tokenAddress);
-  await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
-
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
+export async function cmdTokenGetSupplyLimit(tokenAddress: string, chainConfig: ChainConfig, options: TxOptions) {
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
   const { module, compliance } = await SupplyLimitModuleAPI.fromToken(token, chainConfig.provider, options);
 
   const encSupplyLimit = await SupplyLimitModuleAPI.getSupplyLimit(module, compliance, chainConfig, options);
@@ -37,19 +31,17 @@ export async function cmdTokenSetSupplyLimit(
   amount: bigint,
   complianceOwnerWalletAlias: string,
   chainConfig: ChainConfig,
-  options?: TxOptions,
+  options: TxOptions,
 ) {
-  options = options ?? defaultTxOptions(1);
-
   throwIfInvalidAddress(tokenAddress);
   await throwIfNotDeployed('Token', chainConfig.provider, tokenAddress);
 
   const complianceOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(complianceOwnerWalletAlias);
 
-  const token = TokenAPI.from(tokenAddress, chainConfig.provider);
+  const token = await TokenAPI.fromSafe(tokenAddress, chainConfig.provider);
   const { module, compliance } = await SupplyLimitModuleAPI.fromToken(token, chainConfig.provider, options);
 
-  await throwIfNotOwner("token's Compliance", chainConfig, compliance, complianceOwnerWallet);
+  await throwIfNotOwner("token's Compliance", compliance, complianceOwnerWallet, chainConfig.provider, chainConfig);
 
   await SupplyLimitModuleAPI.setSupplyLimit(module, compliance, amount, complianceOwnerWallet, chainConfig, options);
 
