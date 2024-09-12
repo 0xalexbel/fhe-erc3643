@@ -1,3 +1,5 @@
+![test workflow](https://github.com/0xalexbel/fhe-erc3643/actions/workflows/ci.yml/badge.svg)
+
 # About
 
 The `fhe-erc3643` package is an almost full port of the entire Tokeny Solutions `TREX` package using FHE to encrypt token amounts 
@@ -22,6 +24,7 @@ It is essentially a single Hardhat project with an integrated CLI (via the hardh
 - Implement DvD (Delivery versus Delivery)
 - Convert missing modules to FHEVM (Country-related modules, TimeTransfersLimitsModule.sol, MaxBalanceModule.sol, TransferFeesModule.sol)
 - Encrypt the `country` property
+- linter. Current version raises too many lint errors mostly due to original TREX + onChainID code.  
 
 # Install & Test
 
