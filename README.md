@@ -12,6 +12,16 @@ It is essentially a single Hardhat project with an integrated CLI (via the hardh
 - The DvA (Delivery versus Action) contract is also fully converted as well as its entire test suite. A fully running example is available at A full running script is available at [./test/scripts/fhevm/DVA.sh](https://github.com/0xalexbel/fhe-erc3643/blob/main/test/scripts/fhevm/DVA.sh)
 - `OnChainID` is included as-is along with its test suite, just renamed to `identity` (added solidity 0.8.24 support + linter corrections). No FHE features have been included.
 
+# Development Roadmap
+
+- Improve the `hardhat-fhevm` hardhat plug-in to support multiple nodes
+- Add command `trex new-token` to create multiple tokens on the same factory. Right now it only supports a single token
+- Remove the `--unpause` flag in the `trex setup` command
+- Test on Zama's dev node
+- Test on Anvil/Hardhat node
+- Implement DvD (Delivery versus Delivery)
+- Convert missing modules to FHEVM (Country-related modules, TimeTransfersLimitsModule.sol, MaxBalanceModule.sol, TransferFeesModule.sol)
+- Encrypt the `country` property
 
 # Install & Test
 
@@ -91,7 +101,8 @@ npx hardhat --network fhevm token mint --token <token address> --agent "token-ag
 
 # Example interacting  with the `ExchangeMonthlyLimitsModule` compliance module
 
-The following interaction is fully FHE compliant (from start to finish).
+The following interaction is fully FHE compliant (from start to finish). (See [./test/scripts/fhevm/ExchangeMonthlyLimits.sh](https://github.com/0xalexbel/fhe-erc3643/blob/main/test/scripts/fhevm/ExchangeMonthlyLimits.sh))
+
 
 ```bash
 # setup the TREX environment
@@ -115,10 +126,11 @@ A full running script is available at [./test/scripts/fhevm/DVA.sh](https://gith
 npx hardhat transfer-manager --help
 ```
 
-# The `hardhat-fhevm` npm package
+# The  `🚧 hardhat-fhevm 🚧` npm package
 
 fhe-erc3643 uses the `hardhat-fhevm` hardhat plugin, which offers a set of hardhat tasks to develop solidity contracts on top of Zama's FHEVM. 
-It supports both the mock and local node modes.
+It supports both the mock and local node modes. 
+The `hardhat-fhevm` hardhat plugin is currently in alpha testing. Future versions should be fully re-architectured to better support external nodes like Anvil, Hardhat node and Zama dev-node.
 
 - NPM: https://www.npmjs.com/package/hardhat-fhevm
 - Git: https://github.com/0xalexbel/hardhat-fhevm

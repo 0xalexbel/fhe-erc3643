@@ -19,6 +19,3 @@ then
 else    
     echo "Test succeeded"
 fi
-
-#TOKEN=$(npx hardhat trex setup --mint 1000 --unpause); TOKEN=$(echo "$TOKEN" | tail -n1); echo "BLA=$TOKEN"
-#npx hardhat trex setup --mint 1000 --unpause --json | tail -n40 | jq .
