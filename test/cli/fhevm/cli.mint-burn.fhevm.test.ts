@@ -21,7 +21,7 @@ const cmdBurn = { scope: SCOPE_TOKEN, task: SCOPE_TOKEN_BURN };
 describe('npx hardhat --network fhevm trex setup', () => {
   let context: CmdTREXSetupOutput;
   before(async () => {
-    context = await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP });
+    context = await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP }, { mint: 0n });
     expect(context.tokenAddress).to.be.properAddress;
   });
 

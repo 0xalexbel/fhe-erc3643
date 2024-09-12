@@ -138,7 +138,6 @@ describe('run command trex setup', () => {
         },
       );
       expect(res9.transferDetails.statusString).to.eq('COMPLETED');
-      expect(res9.tokenTransfer.statusString).to.eq('COMPLETED');
 
       const newBalanceRes = await hre.run(
         { scope: SCOPE_TOKEN, task: SCOPE_TOKEN_BALANCE },

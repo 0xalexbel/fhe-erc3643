@@ -46,9 +46,6 @@ export async function cmdTokenNew(
   const trexFactory = await TREXFactoryAPI.fromWithOwner(trexFactoryAddress, trexFactoryOwnerWallet);
 
   if (chainConfig.networkName === 'hardhat') {
-    console.error('========================================');
-    console.error('AAAAAA deployTREXSuiteManual ' + trexFactoryAddress);
-    console.error('========================================');
     const res: NewTokenResult = await TREXFactoryAPI.deployTREXSuiteManual(
       trexFactory,
       params.salt,
@@ -62,9 +59,6 @@ export async function cmdTokenNew(
     return res;
   }
 
-  console.error('========================================');
-  console.error('AAAAAA deployTREXSuite ' + trexFactoryAddress);
-  console.error('========================================');
   const res: NewTokenResult = await TREXFactoryAPI.deployTREXSuite(
     trexFactory,
     params.salt,
@@ -74,17 +68,6 @@ export async function cmdTokenNew(
     chainConfig,
     options,
   );
-  console.error('AAAAAA res ' + res);
-
-  // if (options?.noProgress !== true) {
-  //   console.log(
-  //     JSON.stringify(
-  //       { ...res, config: c },
-  //       (key, value) => (typeof value === 'bigint' ? value.toString() : value),
-  //       2, // return everything else unchanged
-  //     ),
-  //   );
-  // }
 
   return res;
 }

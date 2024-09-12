@@ -9,7 +9,9 @@ It is essentially a single Hardhat project with an integrated CLI (via the hardh
 - Few modules have yet to be converted into FHE.
 - The vast majority of the TREX test suite has also been converted. Consequently, running the test suite on a real node is currently impracticable.
 - Due to the large amount of tests, it is not possible to run the full test suite in a single hardhat test command. The node.js runtime eventually will run out of memory.
-- The DVA contract is also fully converted as well as its entire test suite.
+- The DvA (Delivery versus Action) contract is also fully converted as well as its entire test suite. A fully running example is available at A full running script is available at [./test/scripts/fhevm/DVA.sh](https://github.com/0xalexbel/fhe-erc3643/blob/main/test/scripts/fhevm/DVA.sh)
+- `OnChainID` is included as-is along with its test suite, just renamed to `identity` (added solidity 0.8.24 support + linter corrections). No FHE features have been included.
+
 
 # Install & Test
 
@@ -90,6 +92,15 @@ npx hardhat --network fhevm token exchangemonthly:set-exchange-limit --token 0x4
 npx hardhat --network fhevm token transfer --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --wallet alice --to bob --amount 10
 # Display bob's remaining credits
 npx hardhat --network fhevm token exchangemonthly:get-monthly-counter --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --exchange-id bob --investor-id alice --decrypt
+```
+
+# Example running the DvA contract in full FHE mode
+
+A full running script is available at [./test/scripts/fhevm/DVA.sh](https://github.com/0xalexbel/fhe-erc3643/blob/main/test/scripts/fhevm/DVA.sh)
+
+```bash
+# For a complete list of DvA commands:
+npx hardhat transfer-manager --help
 ```
 
 # The `hardhat-fhevm` npm package

@@ -94,9 +94,9 @@ async function tokenTransferFrom(
 
 describe('Token - Transfers', () => {
   describe('cli mint', () => {
-    it('should ', async () => {
+    it('BBBB should ', async () => {
       // setup TREX token
-      const { tokenAddress } = (await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP })) as {
+      const { tokenAddress } = (await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP }, { mint: 10000n })) as {
         tokenAddress: string;
       };
 
