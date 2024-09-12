@@ -46,7 +46,6 @@ function _log(msg: string, options?: LogOptions) {
 }
 
 function _logResult(msg: string, options?: LogOptions) {
-  // ignore quiet flag
   const indent = options?.indent ? options.indent : '';
 
   if (options?.stderr) {

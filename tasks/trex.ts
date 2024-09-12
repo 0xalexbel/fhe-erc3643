@@ -36,7 +36,6 @@ trexScope
   .task(SCOPE_TREX_SETUP)
   .addFlag('unpause', 'Unpause token after creation')
   .addFlag('noProgress', 'Disable progress')
-  .addFlag('ifNeeded', 'If a deployed token already exists, do nothing (convenient for testing)')
   .addFlag('json', 'Output result in json format')
   .addParam('mint', 'Default mint amount', undefined, bigint)
   .setAction(
@@ -45,7 +44,6 @@ trexScope
         mint,
         unpause,
         noProgress,
-        ifNeeded,
         json,
       }: { mint: bigint; unpause: boolean; noProgress: boolean; json: boolean; ifNeeded: boolean },
       hre: HardhatRuntimeEnvironment,
@@ -65,7 +63,6 @@ trexScope
       const result: CmdTREXSetupOutput = await cmds.cmdTREXSetup(chainConfig, mint, unpause, options);
 
       if (json) {
-        // Result logs ignore the quiet flag
         logJSONResult(result);
       } else {
         logOK(`New TREX token has been deployed at:`, { quiet: noProgress });
