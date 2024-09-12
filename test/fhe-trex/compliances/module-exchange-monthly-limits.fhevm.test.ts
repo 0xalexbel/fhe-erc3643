@@ -1,4 +1,4 @@
-import { ethers, upgrades, fhevm } from 'hardhat';
+import { ethers, fhevm } from 'hardhat';
 import { expect } from 'chai';
 import { deploySuiteWithModularCompliancesFixture } from '../fixtures/deploy-full-suite.fixture';
 import {
@@ -11,6 +11,7 @@ import {
 import { ExchangeMonthlyLimitsModule, Identity, IdentityRegistry, ModularCompliance, Token } from '../../../types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { txWait } from '../../../sdk/utils';
+import { AddressLike } from 'ethers';
 
 type MyContext = {
   suite: {
@@ -27,17 +28,39 @@ type MyContext = {
     tokenAgent: HardhatEthersSigner;
   };
 };
+async function setExchangeMonthlyLimit(
+  compliance: ModularCompliance,
+  complianceModule: AddressLike,
+  exchangeID: string,
+  limit: bigint | number,
+) {
+  const tx = await compliance.callModuleFunction(
+    new ethers.Interface([
+      'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+    ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, limit]),
+    complianceModule,
+  );
+  await tx.wait(1);
+}
 
 async function deployExchangeMonthlyLimitsFullSuite() {
   // verifyCharlie = true
   const context = await deploySuiteWithModularCompliancesFixture();
   // Set token compliance
   await txWait(context.suite.token.setCompliance(context.suite.compliance), {});
-  const ExchangeMonthlyLimitsModule = await ethers.getContractFactory('ExchangeMonthlyLimitsModule');
-  // type = Contract
-  const _complianceModule = await upgrades.deployProxy(ExchangeMonthlyLimitsModule, []);
-  // type = ExchangeMonthlyLimitsModule
-  const complianceModule = await ethers.getContractAt('ExchangeMonthlyLimitsModule', _complianceModule);
+
+  // const ExchangeMonthlyLimitsModule = await ethers.getContractFactory('ExchangeMonthlyLimitsModule');
+  // // type = Contract
+  // const _complianceModule = await upgrades.deployProxy(ExchangeMonthlyLimitsModule, []);
+  // // type = ExchangeMonthlyLimitsModule
+  // const complianceModule = await ethers.getContractAt('ExchangeMonthlyLimitsModule', _complianceModule);
+
+  const module = await ethers.deployContract('ExchangeMonthlyLimitsModule');
+  await module.waitForDeployment();
+  const proxy = await ethers.deployContract('ModuleProxy', [module, module.interface.encodeFunctionData('initialize')]);
+  await proxy.waitForDeployment();
+  const complianceModule = await ethers.getContractAt('ExchangeMonthlyLimitsModule', proxy);
+
   await txWait(context.suite.compliance.bindToken(context.suite.token), {});
   await txWait(context.suite.compliance.addModule(complianceModule), {});
   await expect(context.suite.compliance.isModuleBound(complianceModule)).to.be.eventually.true;
@@ -78,12 +101,27 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
   async function resetModule() {
     const ExchangeMonthlyLimitsModule = await ethers.getContractFactory('ExchangeMonthlyLimitsModule');
     // type = Contract
-    const _complianceModule = await upgrades.deployProxy(ExchangeMonthlyLimitsModule, []);
+    //const _complianceModule = await upgrades.deployProxy(ExchangeMonthlyLimitsModule, []);
+
+    const module = await ethers.deployContract('ExchangeMonthlyLimitsModule');
+    await module.waitForDeployment();
+    const proxy = await ethers.deployContract('ModuleProxy', [
+      module,
+      module.interface.encodeFunctionData('initialize'),
+    ]);
+    await proxy.waitForDeployment();
+    const _complianceModule = await ethers.getContractAt('ExchangeMonthlyLimitsModule', proxy);
+
     // type = ExchangeMonthlyLimitsModule
     const newComplianceModule = await ethers.getContractAt('ExchangeMonthlyLimitsModule', _complianceModule);
     await expect(context.suite.compliance.isModuleBound(context.suite.complianceModule)).to.be.eventually.true;
-    await context.suite.compliance.removeModule(context.suite.complianceModule);
-    await context.suite.compliance.addModule(newComplianceModule);
+
+    let tx = await context.suite.compliance.removeModule(context.suite.complianceModule);
+    await tx.wait(1);
+
+    tx = await context.suite.compliance.addModule(newComplianceModule);
+    await tx.wait(1);
+
     await expect(context.suite.compliance.isModuleBound(newComplianceModule)).to.be.eventually.true;
 
     context.suite.complianceModule = newComplianceModule;
@@ -102,13 +140,16 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
 
     const compliance = context.suite.complianceModule;
     if (await compliance.isExchangeID(aliceID)) {
-      await compliance.removeExchangeID(aliceID);
+      const tx = await compliance.removeExchangeID(aliceID);
+      tx.wait(1);
     }
     if (await compliance.isExchangeID(bobID)) {
-      await compliance.removeExchangeID(bobID);
+      const tx = await compliance.removeExchangeID(bobID);
+      await tx.wait(1);
     }
     if (await compliance.isExchangeID(charlieID)) {
-      await compliance.removeExchangeID(charlieID);
+      const tx = await compliance.removeExchangeID(charlieID);
+      await tx.wait(1);
     }
   });
 
@@ -121,10 +162,12 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
 
     const compliance = context.suite.complianceModule;
     if (await compliance.isExchangeID(aliceID)) {
-      await compliance.removeExchangeID(aliceID);
+      const tx = await compliance.removeExchangeID(aliceID);
+      await tx.wait(1);
     }
     if (await compliance.isExchangeID(bobID)) {
-      await compliance.removeExchangeID(bobID);
+      const tx = await compliance.removeExchangeID(bobID);
+      await tx.wait(1);
     }
 
     if (aliceBalance + bobBalance > initialAliceBalance + initialBobBalance) {
@@ -162,26 +205,28 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
     expect(newAliceBalance).to.eq(initialAliceBalance);
     expect(newBobBalance).to.eq(initialBobBalance);
 
-    await context.suite.compliance.callModuleFunction(
-      new ethers.Interface([
-        'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-      ]).encodeFunctionData('setExchangeMonthlyLimit', [aliceID, 0]),
-      context.suite.complianceModule,
-    );
+    // await context.suite.compliance.callModuleFunction(
+    //   new ethers.Interface([
+    //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+    //   ]).encodeFunctionData('setExchangeMonthlyLimit', [aliceID, 0]),
+    //   context.suite.complianceModule,
+    // );
+    // await context.suite.compliance.callModuleFunction(
+    //   new ethers.Interface([
+    //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+    //   ]).encodeFunctionData('setExchangeMonthlyLimit', [bobID, 0]),
+    //   context.suite.complianceModule,
+    // );
+    // await context.suite.compliance.callModuleFunction(
+    //   new ethers.Interface([
+    //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+    //   ]).encodeFunctionData('setExchangeMonthlyLimit', [charlieID, 0]),
+    //   context.suite.complianceModule,
+    // );
 
-    await context.suite.compliance.callModuleFunction(
-      new ethers.Interface([
-        'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-      ]).encodeFunctionData('setExchangeMonthlyLimit', [bobID, 0]),
-      context.suite.complianceModule,
-    );
-
-    await context.suite.compliance.callModuleFunction(
-      new ethers.Interface([
-        'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-      ]).encodeFunctionData('setExchangeMonthlyLimit', [charlieID, 0]),
-      context.suite.complianceModule,
-    );
+    await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, aliceID, 0);
+    await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, bobID, 0);
+    await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, charlieID, 0);
   });
 
   describe('.moduleTransferAction', () => {
@@ -197,12 +242,14 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
 
               await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
 
-              await context.suite.compliance.callModuleFunction(
-                new ethers.Interface([
-                  'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-                ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 100]),
-                context.suite.complianceModule,
-              );
+              // const tx = await context.suite.compliance.callModuleFunction(
+              //   new ethers.Interface([
+              //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+              //   ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 100]),
+              //   context.suite.complianceModule,
+              // );
+              // await tx.wait(1);
+              await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, exchangeID, 100);
 
               await expectTokenTransferToSucceed(context.suite.token, fromWallet, toWallet, 10);
 
@@ -226,12 +273,14 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
               await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
 
               // Must set a monthly limit to allow transfer
-              await context.suite.compliance.callModuleFunction(
-                new ethers.Interface([
-                  'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-                ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 100]),
-                context.suite.complianceModule,
-              );
+              // const tx = await context.suite.compliance.callModuleFunction(
+              //   new ethers.Interface([
+              //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+              //   ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 100]),
+              //   context.suite.complianceModule,
+              // );
+              // await tx.wait(1);
+              await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, exchangeID, 100);
 
               // await context.suite.compliance.callModuleFunction(
               //   new ethers.Interface([
@@ -260,12 +309,14 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
               await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
 
               // Must set a monthly limit to allow transfer
-              await context.suite.compliance.callModuleFunction(
-                new ethers.Interface([
-                  'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-                ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 100]),
-                context.suite.complianceModule,
-              );
+              // const tx = await context.suite.compliance.callModuleFunction(
+              //   new ethers.Interface([
+              //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+              //   ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 100]),
+              //   context.suite.complianceModule,
+              // );
+              // await tx.wait(1);
+              await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, exchangeID, 100);
 
               // await context.suite.compliance.callModuleFunction(
               //   new ethers.Interface([
@@ -383,11 +434,18 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
 
           await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(receiverExchangeID);
 
-          await context.suite.compliance.callModuleFunction(
-            new ethers.Interface([
-              'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-            ]).encodeFunctionData('setExchangeMonthlyLimit', [receiverExchangeID, 90]),
+          // const tx = await context.suite.compliance.callModuleFunction(
+          //   new ethers.Interface([
+          //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+          //   ]).encodeFunctionData('setExchangeMonthlyLimit', [receiverExchangeID, 90]),
+          //   context.suite.complianceModule,
+          // );
+          // await tx.wait(1);
+          await setExchangeMonthlyLimit(
+            context.suite.compliance,
             context.suite.complianceModule,
+            receiverExchangeID,
+            90,
           );
 
           await expectTokenTransferToSucceed(context.suite.token, fromWallet, toWallet, 100);
@@ -404,14 +462,17 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
           const to = context.accounts.bobWallet;
           const exchangeID = await context.suite.identityRegistry.identity(to);
 
-          await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
+          const tx = await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
+          await tx.wait(1);
 
-          await context.suite.compliance.callModuleFunction(
-            new ethers.Interface([
-              'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-            ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 90]),
-            context.suite.complianceModule,
-          );
+          // const tx = await context.suite.compliance.callModuleFunction(
+          //   new ethers.Interface([
+          //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+          //   ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 90]),
+          //   context.suite.complianceModule,
+          // );
+          // await tx.wait(1);
+          await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, exchangeID, 90);
 
           await expectTokenTransferToFail(context.suite.token, from, to, 100);
 
@@ -425,14 +486,17 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
           const to = context.accounts.bobWallet;
           const exchangeID = await context.suite.identityRegistry.identity(to);
 
-          await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
+          const tx = await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
+          await tx.wait(1);
 
-          await context.suite.compliance.callModuleFunction(
-            new ethers.Interface([
-              'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-            ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 150]),
-            context.suite.complianceModule,
-          );
+          // const tx = await context.suite.compliance.callModuleFunction(
+          //   new ethers.Interface([
+          //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+          //   ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 150]),
+          //   context.suite.complianceModule,
+          // );
+          // await tx.wait(1);
+          await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, exchangeID, 150);
 
           await expectTokenTransferToSucceed(context.suite.token, from, to, 100);
 
@@ -450,12 +514,13 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
 
           await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
 
-          await context.suite.compliance.callModuleFunction(
-            new ethers.Interface([
-              'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-            ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 150]),
-            context.suite.complianceModule,
-          );
+          // await context.suite.compliance.callModuleFunction(
+          //   new ethers.Interface([
+          //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+          //   ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 150]),
+          //   context.suite.complianceModule,
+          // );
+          await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, exchangeID, 150);
 
           // await context.suite.compliance.callModuleFunction(
           //   new ethers.Interface([
@@ -483,12 +548,13 @@ describe('FHEVM Compliance Module: ExchangeMonthlyLimits', () => {
 
           await context.suite.complianceModule.connect(context.accounts.deployer).addExchangeID(exchangeID);
 
-          await context.suite.compliance.callModuleFunction(
-            new ethers.Interface([
-              'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
-            ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 150]),
-            context.suite.complianceModule,
-          );
+          // await context.suite.compliance.callModuleFunction(
+          //   new ethers.Interface([
+          //     'function setExchangeMonthlyLimit(address _exchangeID, uint256 _newExchangeMonthlyLimit)',
+          //   ]).encodeFunctionData('setExchangeMonthlyLimit', [exchangeID, 150]),
+          //   context.suite.complianceModule,
+          // );
+          await setExchangeMonthlyLimit(context.suite.compliance, context.suite.complianceModule, exchangeID, 150);
 
           // await context.suite.compliance.callModuleFunction(
           //   new ethers.Interface([

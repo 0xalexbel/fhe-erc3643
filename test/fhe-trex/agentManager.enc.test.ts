@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { deployFullSuiteFixture } from './fixtures/deploy-full-suite.fixture';
-import { encrypt64, expectDecrypt64, getLogEventArgs } from '../utils';
+import { encrypt64, expectNonPersistentDecrypt64, getLogEventArgs } from '../utils';
 import { ethers as EthersT } from 'ethers';
 import { AgentManager } from '../../types';
 import { expectRevert } from '../tx_error';
@@ -164,7 +164,7 @@ describe('AgentManager', () => {
         expect(args[0]).to.equal(aliceWallet.address);
         expect(args[1]).to.equal(bobWallet.address);
 
-        await expectDecrypt64(args[2], 200);
+        await expectNonPersistentDecrypt64(args[2], 200);
       });
     });
   });
@@ -245,7 +245,7 @@ describe('AgentManager', () => {
         expect(args[0]).to.equal(hre.ethers.ZeroAddress);
         expect(args[1]).to.equal(bobWallet.address);
 
-        await expectDecrypt64(args[2], 1000);
+        await expectNonPersistentDecrypt64(args[2], 1000);
       });
     });
   });
@@ -362,7 +362,7 @@ describe('AgentManager', () => {
         expect(args[0]).to.equal(bobWallet.address);
         expect(args[1]).to.equal(hre.ethers.ZeroAddress);
 
-        await expectDecrypt64(args[2], 200);
+        await expectNonPersistentDecrypt64(args[2], 200);
       });
     });
   });
@@ -477,7 +477,8 @@ describe('AgentManager', () => {
         const args = getLogEventArgs(txReceipt, 'TokensFrozen', undefined, token);
         expect(args[0]).to.equal(aliceWallet.address);
 
-        await expectDecrypt64(args[1], 100);
+        // TokensFrozen event is non persistent
+        await expectNonPersistentDecrypt64(args[1], 100);
       });
     });
   });
@@ -595,7 +596,7 @@ describe('AgentManager', () => {
         const args = getLogEventArgs(txReceipt, 'TokensUnfrozen', undefined, token);
         expect(args[0]).to.equal(aliceWallet.address);
 
-        await expectDecrypt64(args[1], 100);
+        await expectNonPersistentDecrypt64(args[1], 100);
       });
     });
   });

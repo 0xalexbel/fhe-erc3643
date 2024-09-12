@@ -3,11 +3,11 @@ import fs from 'fs';
 import fsPromises from 'fs/promises';
 import { getContractOwner } from './utils';
 import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
-import { FheERC3643Error, FheERC3643InternalError } from '../sdk/errors';
+import { FheERC3643Error, FheERC3643InternalError, throwIfNoProvider } from '../sdk/errors';
 import { logError } from './log';
 import type { HardhatFhevmRuntimeEnvironment as HardhatFhevmRuntimeEnvironmentType } from 'hardhat-fhevm/dist/src/common/HardhatFhevmRuntimeEnvironment';
 import type { HardhatFhevmInstance as HardhatFhevmInstanceType } from 'hardhat-fhevm';
-import { Token, TREXFactory } from './artifacts';
+import { Identity, Token, TREXFactory } from './artifacts';
 import { ChainConfigJSON, ChainNetworkConfig, CryptEngine, History, WalletResolver } from './types';
 
 export const WALLETS: Array<{ index: number; names: string[] }> = [
@@ -509,6 +509,173 @@ export class ChainConfig implements CryptEngine, History, WalletResolver {
     throw new FheERC3643Error(`Unable to resolve TREX Token.`);
   }
 
+  private async _resolveLastIdAddress(
+    managementKey: string,
+    tokenAddress: string,
+    runner?: EthersT.ContractRunner,
+  ): Promise<string> {
+    if (this._identities.length === 0) {
+      throw new FheERC3643Error(`Unable to resolve Identity. No address stored in the history.`);
+    }
+
+    let token;
+    try {
+      if (tokenAddress !== EthersT.ZeroAddress) {
+        // Must use dynamic import to avoid hardhat.config.ts issues
+        const imp = await import('./TokenAPI');
+        token = await imp.TokenAPI.fromSafe(tokenAddress, runner ?? this.provider);
+      }
+    } catch {
+      throw new FheERC3643Error(`Unable to resolve Identity. Token ${tokenAddress} is not available.`);
+    }
+
+    let theId: string | undefined = undefined;
+    let garbageIds = 0;
+    for (let i = this._identities.length - 1; i >= 0; --i) {
+      const id = this._identities[i];
+
+      // Must use dynamic import to avoid hardhat.config.ts issues
+      const imp = await import('./IdentityAPI');
+
+      const infos = await imp.IdentityAPI.getIdentityInfosNoCheck(id, runner ?? this.provider);
+      if (!infos) {
+        // History may be full of garbage
+        this._identities[i] = EthersT.ZeroAddress;
+        garbageIds++;
+        continue;
+      }
+
+      const hash = await imp.IdentityAPI.toKey(managementKey, runner ?? this.provider);
+      const hashHex = EthersT.hexlify(hash);
+      if (infos.managementKeys.includes(hashHex)) {
+        if (token) {
+          const imp = await import('./TokenAPI');
+          const identity = await imp.TokenAPI.userToIdentity(token, managementKey, runner ?? this.provider);
+          if (!identity) {
+            continue;
+          }
+          // is it the right identity ?
+          if ((await identity.getAddress()) !== id) {
+            continue;
+          }
+        }
+        theId = id;
+        break;
+      }
+    }
+
+    if (garbageIds > 0) {
+      // delete
+      const cleanIds = this._identities.filter(t => t !== EthersT.ZeroAddress);
+      this._identities = cleanIds;
+      await this.save();
+    }
+
+    if (theId) {
+      return theId;
+    }
+
+    if (token) {
+      throw new FheERC3643Error(
+        `Unable to resolve Identity with management key ${managementKey} and token ${await token.name()}`,
+      );
+    } else {
+      throw new FheERC3643Error(`Unable to resolve Identity with management key ${managementKey}`);
+    }
+  }
+
+  private async _resolveLastClaimIssuerAddress(
+    managerAddress: string,
+    tokenAddress: string,
+    runner?: EthersT.ContractRunner,
+  ): Promise<string> {
+    let token;
+    try {
+      if (tokenAddress !== EthersT.ZeroAddress) {
+        // Must use dynamic import to avoid hardhat.config.ts issues
+        const imp = await import('./TokenAPI');
+        token = await imp.TokenAPI.fromSafe(tokenAddress, runner ?? this.provider);
+      }
+    } catch {
+      throw new FheERC3643Error(`Unable to resolve Claim Issuer. Token ${tokenAddress} is not available.`);
+    }
+
+    let theCi: string | undefined = undefined;
+
+    if (token) {
+      const t_imp = await import('./TokenAPI');
+      const cis = await t_imp.TokenAPI.trustedIssuersFromManagerAddress(token, managerAddress);
+      if (cis.length > 1) {
+        throw new FheERC3643Error(
+          `Unable to resolve Claim Issuer with management key ${managerAddress} in token ${await token.name()} because ${cis.length} distinct Claim Issuers are sharing the same management key`,
+        );
+      }
+      if (cis.length === 1) {
+        theCi = await cis[0].getAddress();
+        return theCi;
+      }
+    }
+
+    let garbageCis = 0;
+    for (let i = this._claimIssuers.length - 1; i >= 0; --i) {
+      const ci = this._claimIssuers[i];
+
+      const ci_imp = await import('./ClaimIssuerAPI');
+      try {
+        // Check if ci is realy a ClaimIssuer contract
+        const _ci = await ci_imp.ClaimIssuerAPI.fromSafe(ci, this.provider);
+      } catch {
+        this._claimIssuers[i] = EthersT.ZeroAddress;
+        garbageCis++;
+        continue;
+      }
+
+      // Must use dynamic import to avoid hardhat.config.ts issues
+      const imp = await import('./IdentityAPI');
+
+      // ClaimIssuer is also an Identity
+      const infos = await imp.IdentityAPI.getIdentityInfosNoCheck(ci, runner ?? this.provider);
+      if (!infos) {
+        // History may be full of garbage
+        this._claimIssuers[i] = EthersT.ZeroAddress;
+        garbageCis++;
+        continue;
+      }
+
+      const hash = await imp.IdentityAPI.toKey(managerAddress, runner ?? this.provider);
+      const hashHex = EthersT.hexlify(hash);
+      if (infos.managementKeys.includes(hashHex)) {
+        if (token) {
+          const t_imp = await import('./TokenAPI');
+          if (!(await t_imp.TokenAPI.isTrustedIssuer(token, ci))) {
+            continue;
+          }
+        }
+        theCi = ci;
+        break;
+      }
+    }
+
+    if (garbageCis > 0) {
+      // delete
+      const cleanCis = this._claimIssuers.filter(t => t !== EthersT.ZeroAddress);
+      this._claimIssuers = cleanCis;
+      await this.save();
+    }
+
+    if (theCi) {
+      return theCi;
+    }
+
+    if (token) {
+      throw new FheERC3643Error(
+        `Unable to resolve Claim Issuer with management key ${managerAddress} in token ${await token.name()}`,
+      );
+    } else {
+      throw new FheERC3643Error(`Unable to resolve Claim Issuer with management key ${managerAddress}`);
+    }
+  }
+
   public async resolveTREXFactory(
     runner?: EthersT.ContractRunner,
     options?: { trexFactoryAddress?: EthersT.AddressLike },
@@ -527,44 +694,68 @@ export class ChainConfig implements CryptEngine, History, WalletResolver {
       | { salt?: string; trexFactoryAddress?: EthersT.AddressLike },
     runner?: EthersT.ContractRunner,
   ): Promise<Token> {
+    // If no argument
     if (!addressOrSaltOrNameOrSymbol) {
-      return this.resolveToken(runner);
+      const t = await this.resolveToken(runner);
+      return t;
     }
-    // a token address ??
+
+    // If argument is an address
     if (EthersT.isAddress(addressOrSaltOrNameOrSymbol)) {
       const imp = await import('./TokenAPI');
-      return imp.TokenAPI.fromSafe(addressOrSaltOrNameOrSymbol, runner ?? this.provider);
+      const t = await imp.TokenAPI.fromSafe(addressOrSaltOrNameOrSymbol, runner ?? this.provider);
+      return t;
     }
+
+    // If argument is addressable
     if (EthersT.isAddressable(addressOrSaltOrNameOrSymbol)) {
       const imp = await import('./TokenAPI');
-      return imp.TokenAPI.fromSafe(await addressOrSaltOrNameOrSymbol.getAddress(), runner ?? this.provider);
+      const t = await imp.TokenAPI.fromSafe(await addressOrSaltOrNameOrSymbol.getAddress(), runner ?? this.provider);
+      return t;
     }
-    // try addresslike (ens)
+
+    // If argument is a promise, try addresslike (ens)
     if (addressOrSaltOrNameOrSymbol instanceof Promise) {
       try {
         const addr = await EthersT.resolveAddress(addressOrSaltOrNameOrSymbol, this.provider);
         const imp = await import('./TokenAPI');
-        return imp.TokenAPI.fromSafe(addr, runner ?? this.provider);
+        const t = await imp.TokenAPI.fromSafe(addr, runner ?? this.provider);
+        return t;
       } catch {}
     }
+
+    // If argument is an object
     if (typeof addressOrSaltOrNameOrSymbol === 'object') {
       if ('trexFactoryAddress' in addressOrSaltOrNameOrSymbol || 'salt' in addressOrSaltOrNameOrSymbol) {
-        return this.resolveToken(runner, addressOrSaltOrNameOrSymbol);
+        const t = await this.resolveToken(runner, addressOrSaltOrNameOrSymbol);
+        return t;
       }
+
+      throw new FheERC3643Error('Unable to resolve TREX Token address');
     }
+
     // try name or symbol or salt (only)
     if (typeof addressOrSaltOrNameOrSymbol === 'string') {
       try {
         // First try name or symbol
-        return this.resolveToken(runner, {
+        const t = await this.resolveToken(runner, {
           orAndfilter: [{ name: addressOrSaltOrNameOrSymbol }, { symbol: addressOrSaltOrNameOrSymbol }],
         });
+        return t;
       } catch {}
+
       try {
-        // try salt
-        return this.resolveToken(runner, { salt: addressOrSaltOrNameOrSymbol });
+        // then try salt
+        const t = await this.resolveToken(runner, { salt: addressOrSaltOrNameOrSymbol });
+        return t;
       } catch {}
+
+      throw new FheERC3643Error(
+        `Unable to resolve TREX Token address with symbol/name/salt ${addressOrSaltOrNameOrSymbol}`,
+      );
     }
+
+    // Unrecognized argument
     throw new FheERC3643Error('Unable to resolve TREX Token address');
   }
 
@@ -601,6 +792,42 @@ export class ChainConfig implements CryptEngine, History, WalletResolver {
     return t;
   }
 
+  public async resolveIdentity(
+    walletAddress: string,
+    token?: EthersT.AddressLike,
+    runner?: EthersT.ContractRunner,
+  ): Promise<Identity> {
+    let tokenAddress = EthersT.ZeroAddress;
+    if (token) {
+      tokenAddress = await EthersT.resolveAddress(token, this.provider);
+    }
+
+    const addr = await this._resolveLastIdAddress(walletAddress, tokenAddress, runner);
+
+    const imp = await import('./IdentityAPI');
+    const id = await imp.IdentityAPI.fromSafe(addr, runner ?? this.provider);
+
+    return id;
+  }
+
+  public async resolveClaimIssuer(
+    walletAddress: string,
+    token?: EthersT.AddressLike,
+    runner?: EthersT.ContractRunner,
+  ): Promise<Identity> {
+    let tokenAddress = EthersT.ZeroAddress;
+    if (token) {
+      tokenAddress = await EthersT.resolveAddress(token, this.provider);
+    }
+
+    const addr = await this._resolveLastClaimIssuerAddress(walletAddress, tokenAddress, runner);
+
+    const imp = await import('./ClaimIssuerAPI');
+    const ci = await imp.ClaimIssuerAPI.fromSafe(addr, runner ?? this.provider);
+
+    return ci;
+  }
+
   async findDVATransferManagerAddress(token: Token, dvaAddressOrAlias: string) {
     // Try dva address first
     for (let i = this._dvaTransferManagers.length - 1; i >= 0; --i) {
@@ -628,6 +855,27 @@ export class ChainConfig implements CryptEngine, History, WalletResolver {
       }
     }
     return null;
+  }
+
+  async resolveTokenFactory(token: Token) {
+    const provider = throwIfNoProvider(token.runner);
+    const t_imp = await import('./TokenAPI');
+    const f_imp = await import('./TREXFactoryAPI');
+    const factories = [];
+    for (let i = 0; i < this._trexFactories.length; ++i) {
+      const factory = await f_imp.TREXFactoryAPI.fromSafe(this._trexFactories[i], provider);
+      const ok = await t_imp.TokenAPI.hasSameAuthorityAsFactory(token, factory);
+      if (ok) {
+        factories.push(factory);
+      }
+    }
+    if (factories.length > 1) {
+      throw new FheERC3643Error(`Multiple TREXFactories are sharing the same ImplementationAuthority`);
+    }
+    if (factories.length === 0) {
+      throw new FheERC3643Error(`Unable to retreive the TREXFactory associated with token ${await token.getAddress()}`);
+    }
+    return factories[0];
   }
 }
 

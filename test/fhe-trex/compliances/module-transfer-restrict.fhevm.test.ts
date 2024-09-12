@@ -4,17 +4,24 @@ import { expectTokenBalanceToEq, expectTokenTransferToEq, tokenBalanceOf } from 
 import { ModularCompliance, Token, TransferRestrictModule } from '../../../types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { AddressLike } from 'ethers';
 
 async function deployTransferRestrictFullSuite() {
   const context = await deploySuiteWithModularCompliancesFixture();
   // Set token compliance
   await context.suite.token.setCompliance(context.suite.compliance);
+
   const module = await ethers.deployContract('TransferRestrictModule');
+  await module.waitForDeployment();
   const proxy = await ethers.deployContract('ModuleProxy', [module, module.interface.encodeFunctionData('initialize')]);
+  await proxy.waitForDeployment();
   const complianceModule = await ethers.getContractAt('TransferRestrictModule', proxy);
 
-  await context.suite.compliance.bindToken(context.suite.token);
-  await context.suite.compliance.addModule(complianceModule);
+  let tx = await context.suite.compliance.bindToken(context.suite.token);
+  await tx.wait(1);
+
+  tx = await context.suite.compliance.addModule(complianceModule);
+  await tx.wait(1);
 
   return {
     ...context,
@@ -23,6 +30,15 @@ async function deployTransferRestrictFullSuite() {
       complianceModule,
     },
   };
+}
+
+async function resetPermission(compliance: ModularCompliance, complianceModule: AddressLike, user: string) {
+  // Reset permissions
+  const tx = await compliance.callModuleFunction(
+    new ethers.Interface(['function disallowUser(address _userAddress)']).encodeFunctionData('disallowUser', [user]),
+    complianceModule,
+  );
+  await tx.wait(1);
 }
 
 describe('FHEVM .moduleCheck', () => {
@@ -109,15 +125,7 @@ describe('FHEVM .moduleCheck', () => {
       await expectTokenBalanceToEq(context.suite.token, toWallet, toBalance);
 
       // Reset permissions
-      await context.suite.compliance.callModuleFunction(
-        new ethers.Interface(['function disallowUser(address _userAddress)']).encodeFunctionData('disallowUser', [
-          fromWallet.address,
-        ]),
-        context.suite.complianceModule,
-      );
-
-      // const result = await context.suite.complianceModule.moduleCheck(from, to, 10, context.suite.compliance);
-      // expect(result).to.be.true;
+      await resetPermission(context.suite.compliance, context.suite.complianceModule, fromWallet.address);
     });
   });
 
@@ -148,15 +156,7 @@ describe('FHEVM .moduleCheck', () => {
       await expectTokenBalanceToEq(context.suite.token, toWallet, toBalance);
 
       // Reset permissions
-      await context.suite.compliance.callModuleFunction(
-        new ethers.Interface(['function disallowUser(address _userAddress)']).encodeFunctionData('disallowUser', [
-          toWallet.address,
-        ]),
-        context.suite.complianceModule,
-      );
-
-      // const result = await context.suite.complianceModule.moduleCheck(from, to, 10, context.suite.compliance);
-      // expect(result).to.be.true;
+      await resetPermission(context.suite.compliance, context.suite.complianceModule, toWallet.address);
     });
   });
 });

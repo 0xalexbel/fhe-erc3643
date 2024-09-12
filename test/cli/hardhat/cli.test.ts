@@ -147,7 +147,7 @@ describe('run command trex setup', () => {
   });
 
   describe('then run command token transfer', () => {
-    it('BBBB should work', async () => {
+    it('should work', async () => {
       const res: { tokenAddress: string } = await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP }, { mint: 0n });
       expect(res.tokenAddress).to.be.properAddress;
       // mint alice
@@ -220,7 +220,7 @@ describe('run command trex setup', () => {
   });
 
   describe('then run command transfer-manager create', () => {
-    it('BBBB should work', async () => {
+    it('should work', async () => {
       const { tokenAddress }: { tokenAddress: string } = await hre.run(
         { scope: SCOPE_TREX, task: SCOPE_TREX_SETUP },
         { mint: 1000000n, unpause: true },

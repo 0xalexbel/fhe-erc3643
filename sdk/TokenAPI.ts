@@ -1,6 +1,7 @@
 import assert from 'assert';
 import { ethers as EthersT } from 'ethers';
 import {
+  ClaimIssuer,
   Identity,
   IdentityRegistry,
   IdentityRegistryStorage,
@@ -12,6 +13,7 @@ import {
   Token__factory,
   TokenProxy__factory,
   TREXFactory,
+  TrustedIssuersRegistry,
 } from './artifacts';
 import { TxOptions, WalletResolver } from './types';
 import { isDeployed, txWait, txWaitAndCatchError } from './utils';
@@ -22,6 +24,7 @@ import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { FheERC3643Error, throwIfInvalidAddress, throwIfNoProvider, throwIfNotOwner } from './errors';
 import { IdFactoryAPI } from './IdFactoryAPI';
 import { AgentRoleAPI } from './AgentRoleAPI';
+import { ClaimIssuerAPI } from './ClaimIssuerAPI';
 
 export class TokenAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): Token {
@@ -337,6 +340,14 @@ export class TokenAPI {
     return IdentityRegistryAPI.identityRegistryStorage(ir, runner);
   }
 
+  static async trustedIssuersRegistry(
+    token: Token,
+    runner?: EthersT.ContractRunner | null,
+  ): Promise<TrustedIssuersRegistry> {
+    const ir = await this.identityRegistry(token, runner);
+    return IdentityRegistryAPI.trustedIssuersRegistry(ir, runner);
+  }
+
   static async hasIdentity(
     token: Token,
     user: EthersT.AddressLike,
@@ -640,5 +651,71 @@ export class TokenAPI {
         `Identity of ${userAddressAlias} is not verified (token=${await token.getAddress()}, id-registry=${await identityRegistry.getAddress()})`,
       );
     }
+  }
+
+  /**
+   * - Permission: public
+   * - Access: readonly
+   */
+  static async isTrustedIssuer(token: Token, claimIssuer: EthersT.AddressLike, runner?: EthersT.ContractRunner | null) {
+    if (!runner) {
+      runner = token.runner;
+    }
+
+    const tir = await TokenAPI.trustedIssuersRegistry(token, runner);
+    const ok = await tir.connect(runner).isTrustedIssuer(claimIssuer);
+    return ok;
+  }
+
+  /**
+   * - Permission: public
+   * - Access: readonly
+   */
+  static async trustedIssuersFromManagerAddress(
+    token: Token,
+    managerAddress: EthersT.AddressLike,
+    runner?: EthersT.ContractRunner | null,
+  ) {
+    if (!runner) {
+      runner = token.runner;
+    }
+    if (!runner) {
+      throw new FheERC3643Error(`Missing runner`);
+    }
+
+    const res: ClaimIssuer[] = [];
+    const tir = await TokenAPI.trustedIssuersRegistry(token, runner);
+    const cis = await tir.connect(runner).getTrustedIssuers();
+    for (let i = 0; i < cis.length; ++i) {
+      const id = await IdentityAPI.fromSafe(cis[i], runner);
+      const is_mgr = await IdentityAPI.isManager(id, managerAddress);
+      if (is_mgr) {
+        res.push(ClaimIssuerAPI.from(cis[i], runner));
+      }
+    }
+    return res;
+  }
+
+  static connect(token: Token, runner?: EthersT.ContractRunner | null) {
+    if (!token.runner) {
+      if (!runner) {
+        throw new FheERC3643Error(`Missing contract runner`);
+      }
+      token = token.connect(runner);
+    }
+    return token;
+  }
+
+  static async getImplementationAuthority(token: Token, runner?: EthersT.ContractRunner | null) {
+    token = TokenAPI.connect(token, runner);
+    const proxy = TokenProxy__factory.connect(await token.getAddress()).connect(token.runner);
+    const authority = await proxy.getImplementationAuthority();
+    return authority;
+  }
+
+  static async hasSameAuthorityAsFactory(token: Token, factory: TREXFactory, runner?: EthersT.ContractRunner | null) {
+    const a = await factory.getImplementationAuthority();
+    const b = await TokenAPI.getImplementationAuthority(token);
+    return a === b && a !== EthersT.ZeroAddress;
   }
 }

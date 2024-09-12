@@ -22,11 +22,11 @@ export function throwIfInvalidAddress(address: string) {
   }
 }
 
-export function throwIfNoProvider(signer: EthersT.Signer) {
-  if (!signer.provider) {
+export function throwIfNoProvider(runner: EthersT.ContractRunner | null | undefined) {
+  if (!runner || !runner.provider) {
     throw new FheERC3643Error(`Missing Ethereum provider`);
   }
-  return signer.provider;
+  return runner.provider;
 }
 
 export function throwIfInvalidUint32(value: number) {

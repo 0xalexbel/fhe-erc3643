@@ -5,8 +5,9 @@ import hre, { ethers } from 'hardhat';
 
 import { deployFullSuiteFixture } from './fixtures/deploy-full-suite.fixture';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
-import { DVATransferManager, IdentityRegistry } from '../../types';
-import { encrypt64, getLogEventArgs } from '../utils';
+import { DVATransferManager, IdentityRegistry, Token } from '../../types';
+import { encrypt64, expectPersistentDecrypt64, getLogEventArgs } from '../utils';
+import { BigNumberish, ContractTransactionReceipt } from 'ethers';
 
 describe('DVATransferManager', () => {
   async function deployFullSuiteWithTransferManager() {
@@ -156,18 +157,28 @@ describe('DVATransferManager', () => {
               encValue.inputProof,
             );
           const txReceipt = await tx.wait(1);
-          const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
-          expect(args.length).to.eq(7);
-          expect(args[0]).to.eq(transferID);
-          expect(args[1]).to.eq(await context.suite.token.getAddress());
-          expect(args[2]).to.eq(context.accounts.aliceWallet.address);
-          expect(args[3]).to.eq(context.accounts.bobWallet.address);
-          expect(args[4]).to.eq(ethers.toBigInt(encValue.handles[0])); //eamount
+          await expectTransferInitiatedEvent(
+            txReceipt,
+            context.suite.transferManager,
+            context.suite.token,
+            transferID,
+            context.accounts.aliceWallet.address,
+            context.accounts.bobWallet.address,
+            encValue.handles[0],
+            0,
+          );
+          // const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
+          // expect(args.length).to.eq(7);
+          // expect(args[0]).to.eq(transferID);
+          // expect(args[1]).to.eq(await context.suite.token.getAddress());
+          // expect(args[2]).to.eq(context.accounts.aliceWallet.address);
+          // expect(args[3]).to.eq(context.accounts.bobWallet.address);
+          // expect(args[4]).to.eq(ethers.toBigInt(encValue.handles[0])); //eamount
 
-          const encActualAmount = args[5];
-          expect(await hre.fhevm.decrypt64(encActualAmount)).to.eq(0);
+          // const encActualAmount = args[5];
+          // await expectPersistentDecrypt64(encActualAmount, 0);
 
-          expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
+          // expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
         });
       });
 
@@ -203,18 +214,29 @@ describe('DVATransferManager', () => {
                 encHundred.inputProof,
               );
             const txReceipt = await tx.wait(1);
-            const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
-            expect(args.length).to.eq(7);
-            expect(args[0]).to.eq(transferID);
-            expect(args[1]).to.eq(await context.suite.token.getAddress());
-            expect(args[2]).to.eq(context.accounts.aliceWallet.address);
-            expect(args[3]).to.eq(context.accounts.bobWallet.address);
-            expect(args[4]).to.eq(ethers.toBigInt(encHundred.handles[0])); //eamount
+            await expectTransferInitiatedEvent(
+              txReceipt,
+              context.suite.transferManager,
+              context.suite.token,
+              transferID,
+              context.accounts.aliceWallet.address,
+              context.accounts.bobWallet.address,
+              encHundred.handles[0],
+              100,
+            );
 
-            const encActualAmount = args[5];
-            expect(await hre.fhevm.decrypt64(encActualAmount)).to.eq(100);
+            // const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
+            // expect(args.length).to.eq(7);
+            // expect(args[0]).to.eq(transferID);
+            // expect(args[1]).to.eq(await context.suite.token.getAddress());
+            // expect(args[2]).to.eq(context.accounts.aliceWallet.address);
+            // expect(args[3]).to.eq(context.accounts.bobWallet.address);
+            // expect(args[4]).to.eq(ethers.toBigInt(encHundred.handles[0])); //eamount
 
-            expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
+            // const encActualAmount = args[5];
+            // await expectPersistentDecrypt64(encActualAmount, 100);
+
+            // expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
 
             const transfer = await context.suite.transferManager.getTransfer(transferID);
             expect(transfer.approvers.length).to.be.eq(1);
@@ -255,18 +277,29 @@ describe('DVATransferManager', () => {
                 encHundred.inputProof,
               );
             const txReceipt = await tx.wait(1);
-            const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
-            expect(args.length).to.eq(7);
-            expect(args[0]).to.eq(transferID);
-            expect(args[1]).to.eq(await context.suite.token.getAddress());
-            expect(args[2]).to.eq(context.accounts.aliceWallet.address);
-            expect(args[3]).to.eq(context.accounts.bobWallet.address);
-            expect(args[4]).to.eq(ethers.toBigInt(encHundred.handles[0])); //eamount
+            await expectTransferInitiatedEvent(
+              txReceipt,
+              context.suite.transferManager,
+              context.suite.token,
+              transferID,
+              context.accounts.aliceWallet.address,
+              context.accounts.bobWallet.address,
+              encHundred.handles[0],
+              100,
+            );
 
-            const encActualAmount = args[5];
-            expect(await hre.fhevm.decrypt64(encActualAmount)).to.eq(100);
+            // const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
+            // expect(args.length).to.eq(7);
+            // expect(args[0]).to.eq(transferID);
+            // expect(args[1]).to.eq(await context.suite.token.getAddress());
+            // expect(args[2]).to.eq(context.accounts.aliceWallet.address);
+            // expect(args[3]).to.eq(context.accounts.bobWallet.address);
+            // expect(args[4]).to.eq(ethers.toBigInt(encHundred.handles[0])); //eamount
 
-            expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
+            // const encActualAmount = args[5];
+            // await expectPersistentDecrypt64(encActualAmount, 100);
+
+            // expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
 
             const transfer = await context.suite.transferManager.getTransfer(transferID);
             expect(transfer.approvers.length).to.be.eq(1);
@@ -311,18 +344,29 @@ describe('DVATransferManager', () => {
               );
 
             const txReceipt = await tx.wait(1);
-            const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
-            expect(args.length).to.eq(7);
-            expect(args[0]).to.eq(transferID);
-            expect(args[1]).to.eq(await context.suite.token.getAddress());
-            expect(args[2]).to.eq(context.accounts.aliceWallet.address);
-            expect(args[3]).to.eq(context.accounts.bobWallet.address);
-            expect(args[4]).to.eq(ethers.toBigInt(encHundred.handles[0])); //eamount
+            await expectTransferInitiatedEvent(
+              txReceipt,
+              context.suite.transferManager,
+              context.suite.token,
+              transferID,
+              context.accounts.aliceWallet.address,
+              context.accounts.bobWallet.address,
+              encHundred.handles[0],
+              100,
+            );
 
-            const encActualAmount = args[5];
-            expect(await hre.fhevm.decrypt64(encActualAmount)).to.eq(100);
+            // const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
+            // expect(args.length).to.eq(7);
+            // expect(args[0]).to.eq(transferID);
+            // expect(args[1]).to.eq(await context.suite.token.getAddress());
+            // expect(args[2]).to.eq(context.accounts.aliceWallet.address);
+            // expect(args[3]).to.eq(context.accounts.bobWallet.address);
+            // expect(args[4]).to.eq(ethers.toBigInt(encHundred.handles[0])); //eamount
 
-            expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
+            // const encActualAmount = args[5];
+            // await expectPersistentDecrypt64(encActualAmount, 100);
+
+            // expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
 
             const transfer = await context.suite.transferManager.getTransfer(transferID);
             expect(transfer.approvers.length).to.be.eq(2);
@@ -369,18 +413,29 @@ describe('DVATransferManager', () => {
               );
 
             const txReceipt = await tx.wait(1);
-            const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
-            expect(args.length).to.eq(7);
-            expect(args[0]).to.eq(transferID);
-            expect(args[1]).to.eq(await context.suite.token.getAddress());
-            expect(args[2]).to.eq(context.accounts.aliceWallet.address);
-            expect(args[3]).to.eq(context.accounts.bobWallet.address);
-            expect(args[4]).to.eq(ethers.toBigInt(encHundred.handles[0])); //eamount
+            await expectTransferInitiatedEvent(
+              txReceipt,
+              context.suite.transferManager,
+              context.suite.token,
+              transferID,
+              context.accounts.aliceWallet.address,
+              context.accounts.bobWallet.address,
+              encHundred.handles[0],
+              100,
+            );
 
-            const encActualAmount = args[5];
-            expect(await hre.fhevm.decrypt64(encActualAmount)).to.eq(100);
+            // const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, context.suite.transferManager);
+            // expect(args.length).to.eq(7);
+            // expect(args[0]).to.eq(transferID);
+            // expect(args[1]).to.eq(await context.suite.token.getAddress());
+            // expect(args[2]).to.eq(context.accounts.aliceWallet.address);
+            // expect(args[3]).to.eq(context.accounts.bobWallet.address);
+            // expect(args[4]).to.eq(ethers.toBigInt(encHundred.handles[0])); //eamount
 
-            expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
+            // const encActualAmount = args[5];
+            // await expectPersistentDecrypt64(encActualAmount, 100);
+
+            // expect(args[6]).to.eq((await context.suite.transferManager.getApprovalCriteria(context.suite.token)).hash);
 
             const transfer = await context.suite.transferManager.getTransfer(transferID);
             expect(transfer.approvers.length).to.be.eq(4);
@@ -394,10 +449,10 @@ describe('DVATransferManager', () => {
             expect(transfer.approvers[3]['approved']).to.be.false;
 
             const senderBalance = await context.suite.token.balanceOf(context.accounts.aliceWallet.address);
-            expect(await hre.fhevm.decrypt64(senderBalance)).to.be.eq(900);
+            await expectPersistentDecrypt64(senderBalance, 900);
 
             const dvaBalance = await context.suite.token.balanceOf(context.suite.transferManager);
-            expect(await hre.fhevm.decrypt64(dvaBalance)).to.be.eq(100);
+            await expectPersistentDecrypt64(dvaBalance, 100);
           });
         });
       });
@@ -436,16 +491,13 @@ describe('DVATransferManager', () => {
           expect(transfer.status).to.be.eq(1);
 
           const esenderBalance = await context.suite.token.balanceOf(context.accounts.aliceWallet.address);
-          const senderBalance = await hre.fhevm.decrypt64(esenderBalance);
-          expect(senderBalance).to.be.eq(900);
+          await expectPersistentDecrypt64(esenderBalance, 900);
 
           const ereceiverBalance = await context.suite.token.balanceOf(context.accounts.bobWallet.address);
-          const receiverBalance = await hre.fhevm.decrypt64(ereceiverBalance);
-          expect(receiverBalance).to.be.eq(600);
+          await expectPersistentDecrypt64(ereceiverBalance, 600);
 
           const edvaBalance = await context.suite.token.balanceOf(context.suite.transferManager);
-          const dvaBalance = await hre.fhevm.decrypt64(edvaBalance);
-          expect(dvaBalance).to.be.eq(0);
+          await expectPersistentDecrypt64(edvaBalance, 0);
         });
       });
     });
@@ -480,14 +532,14 @@ describe('DVATransferManager', () => {
           const transfer = await context.suite.transferManager.getTransfer(context.transferID);
           expect(transfer.status).to.be.eq(1);
 
-          const senderBalance = await context.suite.token.balanceOf(context.accounts.aliceWallet.address);
-          expect(await hre.fhevm.decrypt64(senderBalance)).to.be.eq(900);
+          const esenderBalance = await context.suite.token.balanceOf(context.accounts.aliceWallet.address);
+          await expectPersistentDecrypt64(esenderBalance, 900);
 
-          const receiverBalance = await context.suite.token.balanceOf(context.accounts.bobWallet.address);
-          expect(await hre.fhevm.decrypt64(receiverBalance)).to.be.eq(600);
+          const ereceiverBalance = await context.suite.token.balanceOf(context.accounts.bobWallet.address);
+          await expectPersistentDecrypt64(ereceiverBalance, 600);
 
-          const dvaBalance = await context.suite.token.balanceOf(context.suite.transferManager);
-          expect(await hre.fhevm.decrypt64(dvaBalance)).to.be.eq(0);
+          const edvaBalance = await context.suite.token.balanceOf(context.suite.transferManager);
+          await expectPersistentDecrypt64(edvaBalance, 0);
         });
       });
     });
@@ -664,3 +716,35 @@ describe('DVATransferManager', () => {
     });
   });
 });
+
+async function expectTransferInitiatedEvent(
+  txReceipt: ContractTransactionReceipt | null,
+  transferManager: DVATransferManager,
+  token: Token,
+  expectedTransferID: string,
+  expectedSender: string,
+  expectedRecipient: string,
+  expectedEAmount: BigNumberish | Uint8Array,
+  expectedActualAmount: bigint | number,
+) {
+  // const args = getLogEventArgs(txReceipt, 'Transfer', undefined, token);
+  // expect(args.length).to.be.greaterThanOrEqual(2);
+  // expect(args[0]).to.equal(expectedFrom);
+  // expect(args[1]).to.equal(expectedTo);
+  // // test len because non persistent fhevm handles may be removed
+  // if (args.length >= 3) {
+  //   await expectNonPersistentDecrypt64(args[2], expectedAmount);
+  // }
+  const args = getLogEventArgs(txReceipt, 'TransferInitiated', undefined, transferManager);
+  expect(args.length).to.eq(7);
+  expect(args[0]).to.eq(expectedTransferID);
+  expect(args[1]).to.eq(await token.getAddress());
+  expect(args[2]).to.eq(expectedSender);
+  expect(args[3]).to.eq(expectedRecipient);
+  expect(args[4]).to.eq(ethers.toBigInt(expectedEAmount)); //eamount
+
+  const encActualAmount = args[5];
+  await expectPersistentDecrypt64(encActualAmount, expectedActualAmount);
+
+  expect(args[6]).to.eq((await transferManager.getApprovalCriteria(token)).hash);
+}

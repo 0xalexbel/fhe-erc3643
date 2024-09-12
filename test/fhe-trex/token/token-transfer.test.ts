@@ -10,7 +10,6 @@ import { Token } from '../../../types';
 import { expectRevert } from '../../tx_error';
 import {
   encrypt64,
-  expectDecrypt64,
   expectArrayFinishingWithEncUint64,
   getAllLogEventArgs,
   getLogEventArgs,
@@ -21,6 +20,8 @@ import {
   tokenMint,
   tokenTransfer,
   tokenTransferTxPromise,
+  expectPersistentDecrypt64,
+  expectNonPersistentDecrypt64,
 } from '../../utils';
 import {
   SCOPE_TOKEN,
@@ -94,7 +95,7 @@ async function tokenTransferFrom(
 
 describe('Token - Transfers', () => {
   describe('cli mint', () => {
-    it('BBBB should ', async () => {
+    it('should ', async () => {
       // setup TREX token
       const { tokenAddress } = (await hre.run({ scope: SCOPE_TREX, task: SCOPE_TREX_SETUP }, { mint: 10000n })) as {
         tokenAddress: string;
@@ -135,12 +136,12 @@ describe('Token - Transfers', () => {
       expect(args[0]).to.equal(aliceWallet.address);
       expect(args[1]).to.equal(anotherWallet.address);
 
-      await expectDecrypt64(args[2], 100);
+      await expectPersistentDecrypt64(args[2], 100);
 
       // 2: await expect(token.allowance(aliceWallet.address, anotherWallet.address)).to.eventually.equal(100);
       const eallowance = await token.allowance(aliceWallet.address, anotherWallet.address);
 
-      await expectDecrypt64(eallowance, 100);
+      await expectPersistentDecrypt64(eallowance, 100);
     });
   });
 
@@ -169,11 +170,11 @@ describe('Token - Transfers', () => {
       expect(args[0]).to.equal(aliceWallet.address);
       expect(args[1]).to.equal(anotherWallet.address);
 
-      await expectDecrypt64(args[2], 200);
+      await expectPersistentDecrypt64(args[2], 200);
 
       // 4. await expect(token.allowance(aliceWallet.address, anotherWallet.address)).to.eventually.equal(200);
       const eallowance = await token.allowance(aliceWallet.address, anotherWallet.address);
-      await expectDecrypt64(eallowance, 200);
+      await expectPersistentDecrypt64(eallowance, 200);
     });
   });
 
@@ -202,11 +203,11 @@ describe('Token - Transfers', () => {
       expect(args[0]).to.equal(aliceWallet.address);
       expect(args[1]).to.equal(anotherWallet.address);
 
-      await expectDecrypt64(args[2], 50);
+      await expectPersistentDecrypt64(args[2], 50);
 
       // 4. await expect(token.allowance(aliceWallet.address, anotherWallet.address)).to.eventually.equal(50);
       const eallowance = await token.allowance(aliceWallet.address, anotherWallet.address);
-      await expectDecrypt64(eallowance, 50);
+      await expectPersistentDecrypt64(eallowance, 50);
     });
   });
 
@@ -561,13 +562,12 @@ describe('Token - Transfers', () => {
         expect(args[0]).to.equal(aliceWallet.address);
         expect(args[1]).to.equal(bobWallet.address);
         if (args.length >= 3) {
-          const amount = await fhevm.decrypt64(args[2]);
-          expect(amount).to.equal(100);
+          await expectNonPersistentDecrypt64(args[2], 100);
         }
 
         // 4. await expect(token.allowance(aliceWallet.address, anotherWallet.address)).to.be.eventually.equal(0);
         const eallowance = await token.allowance(aliceWallet.address, anotherWallet.address);
-        await expectDecrypt64(eallowance, 0);
+        await expectPersistentDecrypt64(eallowance, 0);
       });
     });
   });

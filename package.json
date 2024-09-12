@@ -63,7 +63,7 @@
     "lint:sol": "solhint --max-warnings 25 \"**/*.sol\"",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "clean:history": "rimraf ./.fhe-erc3643.history.json",
+    "clean:history": "rimraf ./.fhe-erc3643.*.history.json",
     "clean": "hardhat clean && rimraf ./types",
     "clean:all": "hardhat fhevm clean && npm run clean && rimraf ./cache && npm run clean:history",
     "compile": "npm run typechain && hardhat compile",

@@ -580,7 +580,8 @@ export async function deploySuiteWithModularCompliancesFixture() {
   const complianceBeta = await hre.ethers.deployContract('ModularCompliance');
   await complianceBeta.waitForDeployment();
 
-  await complianceBeta.init();
+  const tx = await complianceBeta.init();
+  await tx.wait(1);
 
   return {
     ...context,

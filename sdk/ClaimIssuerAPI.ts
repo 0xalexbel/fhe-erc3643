@@ -3,6 +3,8 @@ import { History, TxOptions } from './types';
 import { ClaimIssuer, ClaimIssuer__factory, Identity, ITREXFactory } from './artifacts';
 import { IdentityAPI } from './IdentityAPI';
 import { logStepDeployOK } from './log';
+import { FheERC3643Error, throwIfInvalidAddress, throwIfNoProvider } from './errors';
+import { isDeployed } from './utils';
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +82,37 @@ export class ClaimIssuerAPI {
       return contract.connect(runner);
     }
     return contract;
+  }
+
+  static async fromSafe(address: string, runner: EthersT.ContractRunner): Promise<Identity> {
+    throwIfInvalidAddress(address);
+
+    const provider = throwIfNoProvider(runner);
+
+    const contract = ClaimIssuer__factory.connect(address);
+
+    // should be deployed
+    if (!(await isDeployed(provider, address))) {
+      throw new FheERC3643Error(`Claim issuer ${address} is not deployed`);
+    }
+
+    // should be an Identity
+    const infos = await IdentityAPI.getIdentityInfosNoCheck(address, runner);
+    if (!infos) {
+      throw new FheERC3643Error(`1 Address ${address} is not an Claim issuer, it's probably something else...`);
+    }
+
+    // should be a ClaimIssuer, perform a dummy test
+    try {
+      const ok = await contract.connect(runner).isClaimRevoked(EthersT.ZeroHash);
+      if (ok) {
+        throw new Error();
+      }
+    } catch (e) {
+      throw new FheERC3643Error(`2 Address ${address} is not an Claim issuer, it's probably something else...`);
+    }
+
+    return contract.connect(runner);
   }
 
   /**

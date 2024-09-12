@@ -5,7 +5,7 @@ export const SCOPE_IDENTITY_NEW = 'new';
 // export const SCOPE_IDENTITY_ADD_KEY = 'add-key';
 // export const SCOPE_IDENTITY_REMOVE_KEY = 'remove-key';
 // export const SCOPE_IDENTITY_KEY_HAS_PURPOSE = 'key-has-purpose';
-// export const SCOPE_IDENTITY_SHOW = 'show';
+export const SCOPE_IDENTITY_SHOW = 'show';
 
 export const SCOPE_TREX = 'trex';
 export const SCOPE_TREX_NEW_FACTORY = 'new-factory';
@@ -15,6 +15,7 @@ export const SCOPE_TREX_SETUP = 'setup';
 export const SCOPE_CLAIM_ISSUER = 'issuer';
 export const SCOPE_CLAIM_ISSUER_LIST = 'list';
 export const SCOPE_CLAIM_ISSUER_NEW = 'new';
+export const SCOPE_CLAIM_ISSUER_SHOW = 'show';
 //export const SCOPE_CLAIM_ISSUER_CLAIM = 'claim';
 
 // export const SCOPE_CLAIM = 'claim';

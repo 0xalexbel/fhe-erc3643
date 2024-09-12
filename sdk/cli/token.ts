@@ -19,6 +19,13 @@ export type NewTokenResult = {
   saltHash: string;
 };
 
+/*
+
+newTokenFrom anothToken
+token toClaimDetails
+
+*/
+
 export async function cmdTokenNew(
   config: { salt: string },
   tokenOwnerWalletAlias: string,
@@ -577,6 +584,8 @@ export async function cmdTokenShow(
   const agentRole = AgentRoleAPI.from(address, chainConfig.provider);
   const agents = await AgentRoleAPI.searchAgents(agentRole, chainConfig);
 
+  const factory = await chainConfig.resolveTokenFactory(token);
+
   return {
     token,
     address,
@@ -588,6 +597,7 @@ export async function cmdTokenShow(
     ownerAlias: chainConfig.getWalletNamesFromAddress(owner),
     agents,
     paused,
+    factory: await factory.getAddress(),
   };
 }
 

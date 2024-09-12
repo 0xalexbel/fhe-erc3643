@@ -112,6 +112,7 @@ tokenScope
       logOK(`agents alias     : ${token.agents.map(v => v.alias.names).join(',')}`, lo);
       logOK(`agents           : ${token.agents.map(v => v.address).join(',')}`, lo);
       logOK(`paused           : ${token.paused}`, lo);
+      logOK(`TREXFactory      : ${token.factory}`, lo);
 
       return token;
     },

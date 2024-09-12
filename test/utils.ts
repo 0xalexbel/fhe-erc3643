@@ -3,7 +3,7 @@ import assert from 'assert';
 import hre, { fhevm } from 'hardhat';
 import { ethers as EthersT } from 'ethers';
 import { HardhatFhevmInstance } from 'hardhat-fhevm';
-import { Token } from '../types';
+import { Token, Token__factory } from '../types';
 import { expect } from 'chai';
 
 export interface Signers {
@@ -149,6 +149,23 @@ export async function expectTokenBurnToSucceed(
   await expectTokenBalanceToEq(token, to, toBalance - BigInt(amount));
 }
 
+export async function expectTransferEvent(
+  token: Token,
+  txReceipt: EthersT.ContractTransactionReceipt | null,
+  expectedFrom: string,
+  expectedTo: string,
+  expectedAmount: bigint | number,
+) {
+  const args = getLogEventArgs(txReceipt, 'Transfer', undefined, token);
+  expect(args.length).to.be.greaterThanOrEqual(2);
+  expect(args[0]).to.equal(expectedFrom);
+  expect(args[1]).to.equal(expectedTo);
+  // test len because non persistent fhevm handles may be removed
+  if (args.length >= 3) {
+    await expectNonPersistentDecrypt64(args[2], expectedAmount);
+  }
+}
+
 export async function expectTokenTransferToEq(
   token: Token,
   signer: EthersT.Signer,
@@ -161,13 +178,7 @@ export async function expectTokenTransferToEq(
   const fromAddress = await signer.getAddress();
   const toAddress = await EthersT.resolveAddress(to);
   const txReceipt = await tokenTransfer(token, signer, to, amount);
-  const args = getLogEventArgs(txReceipt, 'Transfer', undefined);
-  expect(args[0]).to.equal(fromAddress);
-  expect(args[1]).to.equal(toAddress);
-  if (args.length >= 3) {
-    const amount = await fhevm.decrypt64(args[2]);
-    expect(amount).to.equal(expectedAmount);
-  }
+  await expectTransferEvent(token, txReceipt, fromAddress, toAddress, expectedAmount);
 }
 
 export async function expectTokenMintToEq(
@@ -181,13 +192,7 @@ export async function expectTokenMintToEq(
   expect(expectedAmount).to.be.greaterThanOrEqual(0);
   const toAddress = await EthersT.resolveAddress(to);
   const txReceipt = await tokenMint(token, signer, to, amount);
-  const args = getLogEventArgs(txReceipt, 'Transfer', undefined);
-  expect(args[0]).to.equal(EthersT.ZeroAddress);
-  expect(args[1]).to.equal(toAddress);
-  if (args.length >= 3) {
-    const amount = await fhevm.decrypt64(args[2]);
-    expect(amount).to.equal(expectedAmount);
-  }
+  await expectTransferEvent(token, txReceipt, EthersT.ZeroAddress, toAddress, expectedAmount);
 }
 
 export async function expectTokenBurnToEq(
@@ -201,13 +206,7 @@ export async function expectTokenBurnToEq(
   expect(expectedAmount).to.be.greaterThanOrEqual(0);
   const fromAddress = await EthersT.resolveAddress(from);
   const txReceipt = await tokenBurn(token, signer, from, amount);
-  const args = getLogEventArgs(txReceipt, 'Transfer', undefined);
-  expect(args[0]).to.equal(fromAddress);
-  expect(args[1]).to.equal(EthersT.ZeroAddress);
-  if (args.length >= 3) {
-    const amount = await fhevm.decrypt64(args[2]);
-    expect(amount).to.equal(expectedAmount);
-  }
+  await expectTransferEvent(token, txReceipt, fromAddress, EthersT.ZeroAddress, expectedAmount);
 }
 
 export async function expectTokenBalanceToEq(token: Token, user: EthersT.AddressLike, expectedAmount: number | bigint) {
@@ -378,9 +377,19 @@ export function getAllLogEventArgs(
   return allArgs;
 }
 
-export async function expectDecrypt64(handle: bigint, value: number | bigint) {
-  const amount = await hre.fhevm.decrypt64(handle);
-  expect(amount).to.equal(value);
+async function _expectDecrypt64(handle: bigint, value: number | bigint, persistent: boolean) {
+  if (hre.fhevm.isMock() || persistent) {
+    const amount = await hre.fhevm.decrypt64(handle);
+    expect(amount).to.equal(value);
+  }
+}
+
+export async function expectPersistentDecrypt64(handle: bigint, value: number | bigint) {
+  return _expectDecrypt64(handle, value, true);
+}
+
+export async function expectNonPersistentDecrypt64(handle: bigint, value: number | bigint) {
+  return _expectDecrypt64(handle, value, false);
 }
 
 export async function waitNBlocks(nBlocks: number) {

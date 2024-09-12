@@ -1,4 +1,4 @@
-import { Identity } from '../artifacts';
+import { Identity, Token } from '../artifacts';
 import { ChainConfig } from '../ChainConfig';
 import { FheERC3643Error, throwIfInvalidAddress, throwIfNotDeployed } from '../errors';
 import { IdentityAPI } from '../IdentityAPI';
@@ -58,4 +58,31 @@ export async function cmdIdentityNew(
   );
 
   return identity;
+}
+
+export async function cmdIdentityShow(
+  managementWalletAlias: string,
+  tokenAddressOrSaltOrNameOrSymbol: string | undefined,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const managementWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(managementWalletAlias);
+
+  let token: Token | undefined;
+  if (tokenAddressOrSaltOrNameOrSymbol) {
+    token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+  }
+
+  const identity = await chainConfig.resolveIdentity(managementWallet.address, token);
+
+  const [version, address] = await Promise.all([identity.version(), identity.getAddress()]);
+
+  const keys = await IdentityAPI.getIdentityInfosNoCheck(address, chainConfig.provider);
+
+  return {
+    version,
+    address,
+    ...keys,
+    ...(token ? { token: { address: await token.getAddress(), name: await token.name() } } : undefined),
+  };
 }

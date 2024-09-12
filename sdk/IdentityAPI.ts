@@ -1,9 +1,9 @@
 import { ethers as EthersT } from 'ethers';
 import { TxOptions } from './types';
 import { ClaimIssuer, Identity, Identity__factory } from './artifacts';
-import { txWait } from './utils';
+import { isDeployed, txWait } from './utils';
 import { ClaimIssuerAPI, SignedClaim } from './ClaimIssuerAPI';
-import { FheERC3643Error } from './errors';
+import { FheERC3643Error, throwIfInvalidAddress, throwIfNoProvider } from './errors';
 
 export const KEY_PURPOSE_MANAGEMENT = 1;
 export const KEY_PURPOSE_ACTION = 2;
@@ -17,6 +17,48 @@ export class IdentityAPI {
       return contract.connect(runner);
     }
     return contract;
+  }
+
+  static async fromSafe(address: string, runner: EthersT.ContractRunner): Promise<Identity> {
+    throwIfInvalidAddress(address);
+
+    if (!runner.provider) {
+      throw new FheERC3643Error('ContractRunner has no provider');
+    }
+
+    const contract = Identity__factory.connect(address);
+
+    if (!(await isDeployed(runner.provider, address))) {
+      throw new FheERC3643Error(`Identity ${address} is not deployed`);
+    }
+
+    const infos = await IdentityAPI.getIdentityInfosNoCheck(address, runner);
+    if (!infos) {
+      throw new FheERC3643Error(`Address ${address} is not an Identity, it's probably something else...`);
+    }
+
+    return contract.connect(runner);
+  }
+
+  static async getIdentityInfosNoCheck(
+    address: string,
+    runner: EthersT.ContractRunner,
+  ): Promise<{ managementKeys: string[]; claimKeys: string[]; actionKeys: string[]; version: string } | undefined> {
+    if (!runner.provider) {
+      throw new FheERC3643Error('ContractRunner has no provider');
+    }
+    try {
+      const id = IdentityAPI.from(address, runner);
+      const [managementKeys, actionKeys, claimKeys, version] = await Promise.all([
+        id.getKeysByPurpose(KEY_PURPOSE_MANAGEMENT),
+        id.getKeysByPurpose(KEY_PURPOSE_ACTION),
+        id.getKeysByPurpose(KEY_PURPOSE_CLAIM),
+        id.version(),
+      ]);
+      return { managementKeys, claimKeys, actionKeys, version };
+    } catch (e) {
+      return undefined;
+    }
   }
 
   public static keyPurposeToString(purpose: number) {
@@ -35,17 +77,11 @@ export class IdentityAPI {
   /**
    * Permissions: Public
    */
-  static async keyHasPurpose(
-    identity: Identity,
-    key: EthersT.AddressLike,
-    purpose: number,
-    runner?: EthersT.ContractRunner,
-  ): Promise<boolean> {
-    const hash = await this._toKey(key);
+  static async keyHasPurpose(identity: Identity, key: EthersT.AddressLike, purpose: number): Promise<boolean> {
+    const hash = await this.toKey(key, identity.runner);
     if (hash === EthersT.ZeroHash) {
       throw new FheERC3643Error('Invalid identity key');
     }
-    identity = runner ? identity.connect(runner) : identity;
     return await identity.keyHasPurpose(hash, purpose);
   }
 
@@ -95,26 +131,26 @@ export class IdentityAPI {
     manager: EthersT.Signer,
     options: TxOptions,
   ) {
-    const hash = await this._toKey(key);
+    const hash = await IdentityAPI.toKey(key, identity.runner);
 
     if (hash === EthersT.ZeroHash) {
       throw new FheERC3643Error('Invalid identity key');
     }
 
-    if (!(await this.isManager(identity, manager))) {
+    if (!(await IdentityAPI.isManager(identity, manager))) {
       throw new FheERC3643Error(
         `Permission error : ${await manager.getAddress()} is not a manager of ${await identity.getAddress()}`,
       );
     }
 
-    if (await this.keyHasPurpose(identity, key, purpose)) {
+    if (await IdentityAPI.keyHasPurpose(identity, key, purpose)) {
       const keyAddress = await EthersT.resolveAddress(key);
       throw new FheERC3643Error(`Key ${keyAddress} is already a ${this.keyPurposeToString(purpose)} key`);
     }
 
     await txWait(identity.connect(manager).addKey(hash, purpose, type), options);
 
-    const ok = await this.keyHasPurpose(identity, key, purpose);
+    const ok = await IdentityAPI.keyHasPurpose(identity, key, purpose);
     if (!ok) {
       throw new FheERC3643Error(`Identity addKey has not completed.`);
     }
@@ -268,7 +304,7 @@ export class IdentityAPI {
     manager: EthersT.Signer,
     options: TxOptions,
   ) {
-    const hash = await this._toKey(key);
+    const hash = await this.toKey(key, identity.runner);
 
     if (hash === EthersT.ZeroHash) {
       throw new FheERC3643Error('Invalid identity key');
@@ -324,8 +360,12 @@ export class IdentityAPI {
     return this.keyHasPurpose(identity, key, KEY_PURPOSE_ACTION);
   }
 
-  private static async _toKey(key: EthersT.AddressLike): Promise<EthersT.BytesLike> {
-    const keyAddr = await EthersT.resolveAddress(key);
+  public static async toKey(
+    key: EthersT.AddressLike,
+    runner: EthersT.ContractRunner | null | undefined,
+  ): Promise<EthersT.BytesLike> {
+    const provider = throwIfNoProvider(runner);
+    const keyAddr = await EthersT.resolveAddress(key, provider);
     if (keyAddr === EthersT.ZeroAddress) {
       return EthersT.ZeroHash;
     }

@@ -3,9 +3,14 @@ import { ethers as EthersT } from 'ethers';
 import { string } from 'hardhat/internal/core/params/argumentTypes';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { loadChainConfig } from './utils';
-import { SCOPE_CLAIM_ISSUER, SCOPE_CLAIM_ISSUER_LIST, SCOPE_CLAIM_ISSUER_NEW } from './task-names';
-import { logInfo, logMsg } from '../sdk/log';
-import { importCliModule } from './internal/imp';
+import {
+  SCOPE_CLAIM_ISSUER,
+  SCOPE_CLAIM_ISSUER_LIST,
+  SCOPE_CLAIM_ISSUER_NEW,
+  SCOPE_CLAIM_ISSUER_SHOW,
+} from './task-names';
+import { defaultTxOptions, logInfo, logJSONResult, logMsg, logOK, LogOptions } from '../sdk/log';
+import { importCliModule, importTypes } from './internal/imp';
 
 const issuerScope = scope(SCOPE_CLAIM_ISSUER, 'Manage claim issuers');
 
@@ -47,3 +52,34 @@ issuerScope
 
     return claimIssuer;
   });
+
+issuerScope
+  .task(SCOPE_CLAIM_ISSUER_SHOW)
+  .setDescription('Tries to resolve a claim issuer address given a wallet address')
+  .addParam('wallet', 'The wallet of an identity manager', undefined, string)
+  .addFlag('json', 'Output in json format')
+  .addOptionalParam('token', 'A token where the claim issuer should be registered', undefined, string)
+  .setAction(
+    async (
+      { wallet, token, json }: { wallet: string; token: string; json: boolean },
+      hre: HardhatRuntimeEnvironment,
+    ) => {
+      await importTypes(hre);
+      const cmds = await import('../sdk/cli/issuer');
+      const chainConfig = await loadChainConfig(hre);
+
+      const options = defaultTxOptions(1);
+      const lo: LogOptions = { quiet: options.noProgress };
+
+      const res = await cmds.cmdClaimIssuerShow(wallet, token, chainConfig, options);
+
+      if (json) {
+        logJSONResult(res);
+      } else {
+        logOK(`address          : ${res.address}`, lo);
+        logOK(`version          : ${res.version}`, lo);
+      }
+
+      return res;
+    },
+  );

@@ -46,6 +46,11 @@ describe('Compliance Module: ExchangeMonthlyLimits', () => {
                 context.suite.complianceModule,
               );
 
+              const l = await context.suite.complianceModule.getExchangeMonthlyLimit(
+                context.suite.compliance,
+                exchangeID,
+              );
+              expect(l).to.eq(100);
               await expectTokenTransferToSucceed(context.suite.token, fromWallet, toWallet, 10);
 
               const encCounter = await context.suite.complianceModule.getMonthlyCounter(
