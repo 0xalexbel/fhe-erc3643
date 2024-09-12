@@ -61,12 +61,24 @@ npx hardhat --network fhevm trex setup --mint 1000 --unpause
 - --unpause option to activate the token
 - --help to list all the available commands (mint, burn, transfer, etc.)
 
-### Predefined wallets and aliases
-
-Instead of using addresses you can execute CLI commands using wallet aliases. Note that the deployed token address is still required in hex format. See table below for the list of aliases.
+### Inspect the lastest deployed TREX token
 
 ```bash
-npx hardhat --network fhevm token mint --token <token address> --agent "token-agent" --user alice --amount 10n
+npx hardhat --network fhevm token show
+```
+
+### Wallet and token aliases
+
+Instead of using addresses you can execute CLI commands using wallet aliases. The available of aliases are listed in the table below.
+Token address is optional, if not provided, the CLI will use the latest valid deployed token. You can also use the symbol/name of the token instead of its address
+
+```bash
+# use token address
+npx hardhat --network fhevm token mint --token 0x3Aa5ebB10DC797CAC828524e59A333d0A371443c --agent "token-agent" --user alice --amount 10n
+# use token symbol
+npx hardhat --network fhevm token mint --token MEG --agent "token-agent" --user alice --amount 10n
+# resolve token address automatically
+npx hardhat --network fhevm token mint --agent "token-agent" --user alice --amount 10n
 ```
 
 ### Interacting with the TREX token

@@ -36,6 +36,7 @@ trexScope
   .task(SCOPE_TREX_SETUP)
   .addFlag('unpause', 'Unpause token after creation')
   .addFlag('noProgress', 'Disable progress')
+  .addFlag('ifNeeded', 'If a deployed token already exists, do nothing (convenient for testing)')
   .addFlag('json', 'Output result in json format')
   .addParam('mint', 'Default mint amount', undefined, bigint)
   .setAction(
@@ -44,8 +45,9 @@ trexScope
         mint,
         unpause,
         noProgress,
+        ifNeeded,
         json,
-      }: { mint: bigint; unpause: boolean; noProgress: boolean; json: boolean; stderr: boolean },
+      }: { mint: bigint; unpause: boolean; noProgress: boolean; json: boolean; ifNeeded: boolean },
       hre: HardhatRuntimeEnvironment,
     ) => {
       await importTypes(hre);

@@ -160,14 +160,13 @@ export async function cmdTREXSetup(
   tokenConfigJson.claims.issuers[fooUniversityClaimIssuerAddress] = { topics: [diplomaTopicStr] };
   tokenConfigJson.claims.issuers[barGovernmentClaimIssuerAddress] = { topics: [nameTopicStr] };
 
-  fs.writeFileSync('./megalodon.token.json', JSON.stringify(tokenConfigJson, null, 2), { encoding: 'utf8' });
+  //fs.writeFileSync('./megalodon.token.json', JSON.stringify(tokenConfigJson, null, 2), { encoding: 'utf8' });
 
   // create token
   const tokenResult: NewTokenResult = await cmdTokenNew(
-    './megalodon.token.json',
+    tokenConfigJson,
     tokenOwnerWalletAlias,
     trexFactoryAddress,
-    'TheMegToken',
     trexFactoryOwnerWalletAlias,
     chainConfig,
     options,

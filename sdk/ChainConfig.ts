@@ -457,26 +457,55 @@ export class ChainConfig implements CryptEngine, History, WalletResolver {
     if (this._tokens.length === 0) {
       throw new FheERC3643Error(`Unable to resolve TREX Token. No address stored in the history.`);
     }
+
+    let theToken: string | undefined = undefined;
+    let garbageTokens = 0;
     for (let i = this._tokens.length - 1; i >= 0; --i) {
       const t = this._tokens[i];
 
       // Must use dynamic import to avoid hardhat.config.ts issues
       const imp = await import('./TokenAPI');
-      const infos = await imp.TokenAPI.getTokenInfos(t, runner ?? this.provider);
-      if (!orAndFilter) {
-        return t;
+
+      const infos = await imp.TokenAPI.getTokenInfosNoCheck(t, runner ?? this.provider);
+      if (!infos) {
+        // History may be full of garbage
+        this._tokens[i] = EthersT.ZeroAddress;
+        garbageTokens++;
+        continue;
       }
-      for (let j = 0; j < orAndFilter.length; ++j) {
-        const and = orAndFilter[j];
-        if (and.name && and.name !== infos.name) {
-          continue;
+
+      if (!orAndFilter) {
+        theToken = t;
+      } else {
+        for (let j = 0; j < orAndFilter.length; ++j) {
+          const and = orAndFilter[j];
+          if (and.name && and.name !== infos.name) {
+            continue;
+          }
+          if (and.symbol && and.symbol !== infos.symbol) {
+            continue;
+          }
+          theToken = t;
+          break;
         }
-        if (and.symbol && and.symbol !== infos.symbol) {
-          continue;
-        }
-        return t;
+      }
+
+      if (theToken) {
+        break;
       }
     }
+
+    if (garbageTokens > 0) {
+      // delete
+      const cleanTokens = this._tokens.filter(t => t !== EthersT.ZeroAddress);
+      this._tokens = cleanTokens;
+      await this.save();
+    }
+
+    if (theToken) {
+      return theToken;
+    }
+
     throw new FheERC3643Error(`Unable to resolve TREX Token.`);
   }
 

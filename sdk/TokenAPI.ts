@@ -84,6 +84,27 @@ export class TokenAPI {
     return true;
   }
 
+  static async getTokenInfosNoCheck(
+    address: string,
+    runner: EthersT.ContractRunner,
+  ): Promise<{ name: string; version: string; symbol: string; onchainID: string } | undefined> {
+    if (!runner.provider) {
+      throw new FheERC3643Error('ContractRunner has no provider');
+    }
+    try {
+      const token = TokenAPI.from(address, runner);
+      const [name, version, symbol, onchainID] = await Promise.all([
+        token.name(),
+        token.version(),
+        token.symbol(),
+        token.onchainID(),
+      ]);
+      return { name, symbol, version, onchainID };
+    } catch (e) {
+      return undefined;
+    }
+  }
+
   static async getTokenInfos(
     address: string,
     runner: EthersT.ContractRunner,

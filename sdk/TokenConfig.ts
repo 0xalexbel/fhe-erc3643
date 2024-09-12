@@ -199,11 +199,7 @@ export class TokenConfig {
     return config;
   }
 
-  public static async load(path: string, chainConfig: ChainConfig) {
-    const c = await this._readFile(path);
-    if (!c) {
-      throw new Error(`Unable to load token config file ${path}`);
-    }
+  public static async loadAny(c: any, chainConfig: ChainConfig) {
     const config: TREXTokenUserConfig = this.ZeroConfig();
 
     config.salt = this._validateSalt(c?.salt);
@@ -236,6 +232,14 @@ export class TokenConfig {
     config.claims.issuers = this._validateIssuers(c?.claims?.issuers, true, 'issuers', chainConfig);
 
     return config;
+  }
+
+  public static async loadFile(path: string, chainConfig: ChainConfig) {
+    const c = await this._readFile(path);
+    if (!c) {
+      throw new Error(`Unable to load token config file ${path}`);
+    }
+    return TokenConfig.loadAny(c, chainConfig);
   }
 
   private static _validateSalt(value: unknown): string {

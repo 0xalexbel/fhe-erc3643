@@ -20,10 +20,9 @@ export type NewTokenResult = {
 };
 
 export async function cmdTokenNew(
-  configFile: string,
+  config: { salt: string },
   tokenOwnerWalletAlias: string,
   trexFactoryAddress: string,
-  salt: string,
   trexFactoryOwnerWalletAlias: string,
   chainConfig: ChainConfig,
   options: TxOptions,
@@ -38,9 +37,8 @@ export async function cmdTokenNew(
 
   const tokenOwnerWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(tokenOwnerWalletAlias);
 
-  const c = await TokenConfig.load(configFile, chainConfig);
+  const c = await TokenConfig.loadAny(config, chainConfig);
   c.token.owner = tokenOwnerWallet.address;
-  c.salt = salt;
 
   const params = TokenConfig.toCallParams(c);
   const trexFactory = await TREXFactoryAPI.fromWithOwner(trexFactoryAddress, trexFactoryOwnerWallet);
