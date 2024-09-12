@@ -1,6 +1,6 @@
 import { ethers as EthersT } from 'ethers';
 import { TxOptions } from './types';
-import { Progress } from './log';
+import assert from 'assert';
 
 export async function txWait(
   promise: Promise<EthersT.ContractTransactionResponse>,
@@ -101,4 +101,32 @@ export async function getContractOwner(contract: string | EthersT.Addressable, r
   } catch {
     return undefined;
   }
+}
+
+/* eslint-disable  @typescript-eslint/no-explicit-any */
+export function jsonStringify(o: any) {
+  return JSON.stringify(
+    { ...o },
+    (key, value) => (typeof value === 'bigint' ? value.toString() : value),
+    2, // return everything else unchanged
+  );
+}
+
+export function queryLogEventArgs(
+  txReceipt: EthersT.ContractTransactionReceipt | null,
+  eventName: string,
+  itf?: EthersT.Interface,
+) {
+  assert(txReceipt);
+  if (itf) {
+    txReceipt = new EthersT.ContractTransactionReceipt(itf, txReceipt.provider, txReceipt);
+  }
+  const log = txReceipt.logs.find(log => 'eventName' in log && log.eventName === eventName);
+  if (!log) {
+    return undefined;
+  }
+  if (!('args' in log)) {
+    return undefined;
+  }
+  return log.args;
 }

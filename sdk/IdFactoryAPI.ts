@@ -8,9 +8,8 @@ import {
 } from './artifacts';
 import { History, TxOptions, WalletResolver } from './types';
 import { IdentityImplementationAuthorityAPI } from './IdentityImplementationAuthorityAPI';
-import { isDeployed, txWait } from './utils';
+import { isDeployed, queryLogEventArgs, txWait } from './utils';
 import { FheERC3643Error, FheERC3643InternalError, throwIfInvalidAddress, throwIfNotOwner } from './errors';
-import { getLogEventArgs } from '../test/utils';
 
 export class IdFactoryAPI {
   static from(address: string, runner?: EthersT.ContractRunner | null): IdFactory {
@@ -73,8 +72,8 @@ export class IdFactoryAPI {
         .createTokenIdentity(token, futureTokenOwner, futureTokenSalt, { gasLimit: options?.gasLimit }),
       options,
     );
-    let args = getLogEventArgs(txReceipt, 'TokenLinked', undefined, idFactory);
-    if (args.length !== 2 || args[0] !== (await token.getAddress())) {
+    let args = queryLogEventArgs(txReceipt, 'TokenLinked', idFactory.interface);
+    if (!args || args.length !== 2 || args[0] !== (await token.getAddress())) {
       throw new FheERC3643Error(`Create token identity failed`);
     }
     const tokenIDAddress = args[1];
@@ -86,8 +85,8 @@ export class IdFactoryAPI {
     );
 
     //emit UpdatedTokenInformation(_tokenName, _tokenSymbol, _tokenDecimals, _TOKEN_VERSION, _tokenOnchainID);
-    args = getLogEventArgs(txReceipt, 'UpdatedTokenInformation', undefined, token);
-    if (args.length !== 5 || args[4] !== tokenIDAddress) {
+    args = queryLogEventArgs(txReceipt, 'UpdatedTokenInformation', token.interface);
+    if (!args || args.length !== 5 || args[4] !== tokenIDAddress) {
       throw new FheERC3643Error(`Create token identity failed`);
     }
   }

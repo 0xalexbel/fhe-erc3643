@@ -6,7 +6,7 @@ export interface TxOptions {
   confirms?: number;
   progress?: Progress;
   gasLimit?: number;
-  quiet?: boolean;
+  noProgress?: boolean;
 }
 
 export interface TREXConfig {

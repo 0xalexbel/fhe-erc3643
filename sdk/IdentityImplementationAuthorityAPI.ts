@@ -39,7 +39,7 @@ export class IdentityImplementationAuthorityAPI {
     const identityAddress = await proxy.getAddress();
 
     await logStepDeployOK('IdentityProxy', identityAddress, options);
-    await history.saveContract(identityAddress, 'IdentityProxy');
+    await history.saveContract(identityAddress, 'Identity');
 
     const newIdentity = IdentityAPI.from(identityAddress, deployer);
 

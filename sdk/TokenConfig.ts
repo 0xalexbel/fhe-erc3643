@@ -6,7 +6,7 @@ import { TREXFactoryAPI } from './TREXFactoryAPI';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
 import { IdentityRegistryAPI } from './IdentityRegistryAPI';
-import { ITREXFactory } from '../types';
+import { ITREXFactory } from './artifacts';
 
 export interface TREXTokenUserConfig {
   salt: string;

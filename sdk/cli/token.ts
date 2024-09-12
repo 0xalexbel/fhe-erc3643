@@ -46,6 +46,9 @@ export async function cmdTokenNew(
   const trexFactory = await TREXFactoryAPI.fromWithOwner(trexFactoryAddress, trexFactoryOwnerWallet);
 
   if (chainConfig.networkName === 'hardhat') {
+    console.error('========================================');
+    console.error('AAAAAA deployTREXSuiteManual ' + trexFactoryAddress);
+    console.error('========================================');
     const res: NewTokenResult = await TREXFactoryAPI.deployTREXSuiteManual(
       trexFactory,
       params.salt,
@@ -59,6 +62,9 @@ export async function cmdTokenNew(
     return res;
   }
 
+  console.error('========================================');
+  console.error('AAAAAA deployTREXSuite ' + trexFactoryAddress);
+  console.error('========================================');
   const res: NewTokenResult = await TREXFactoryAPI.deployTREXSuite(
     trexFactory,
     params.salt,
@@ -68,16 +74,17 @@ export async function cmdTokenNew(
     chainConfig,
     options,
   );
+  console.error('AAAAAA res ' + res);
 
-  if (options?.quiet !== true) {
-    console.log(
-      JSON.stringify(
-        { ...res, config: c },
-        (key, value) => (typeof value === 'bigint' ? value.toString() : value),
-        2, // return everything else unchanged
-      ),
-    );
-  }
+  // if (options?.noProgress !== true) {
+  //   console.log(
+  //     JSON.stringify(
+  //       { ...res, config: c },
+  //       (key, value) => (typeof value === 'bigint' ? value.toString() : value),
+  //       2, // return everything else unchanged
+  //     ),
+  //   );
+  // }
 
   return res;
 }
@@ -146,8 +153,10 @@ export async function cmdTokenBalance(
   logStepMsg(`Balance of ${userWalletAlias} = ${balance.toString()}`, options);
 
   return {
-    token,
+    tokenAddress: await token.getAddress(),
+    tokenName: await token.name(),
     userAddress,
+    userWalletAlias,
     fhevmHandle: encBalance,
     value: balance,
   };
@@ -574,13 +583,14 @@ export async function cmdTokenShow(
 ) {
   const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
 
-  const [name, symbol, identity, identityRegistry, owner, address] = await Promise.all([
+  const [name, symbol, identity, identityRegistry, owner, address, paused] = await Promise.all([
     token.name(),
     token.symbol(),
     token.onchainID(),
     token.identityRegistry(),
     token.owner(),
     token.getAddress(),
+    token.paused(),
   ]);
 
   const agentRole = AgentRoleAPI.from(address, chainConfig.provider);
@@ -596,6 +606,7 @@ export async function cmdTokenShow(
     owner,
     ownerAlias: chainConfig.getWalletNamesFromAddress(owner),
     agents,
+    paused,
   };
 }
 

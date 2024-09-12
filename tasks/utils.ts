@@ -29,7 +29,7 @@ async function setupFhevmEnvironment(hre: HardhatRuntimeEnvironment, logOptions:
 
   // // Add a separator
   // //console.log('');
-  await hre.run(TASK_FHEVM_SETUP, { quiet: !!logOptions.quiet });
+  await hre.run(TASK_FHEVM_SETUP, { quiet: !!logOptions.quiet, stderr: !!logOptions.stderr });
 }
 
 export function getHistoryPath(hre: HardhatRuntimeEnvironment) {
@@ -52,11 +52,11 @@ export function clearHistory(hre: HardhatRuntimeEnvironment) {
   }
 }
 
-export async function loadChainConfig(hre: HardhatRuntimeEnvironment, logOptions?: LogOptions) {
+export async function loadChainConfig(hre: HardhatRuntimeEnvironment, quietFhevm?: boolean) {
   const networkName = hre.network.name;
   const historyPath: string | undefined = getHistoryPath(hre);
 
-  await setupFhevmEnvironment(hre, logOptions ?? { quiet: false });
+  await setupFhevmEnvironment(hre, { quiet: quietFhevm === true, stderr: true });
 
   const mnemonic = (hre.config.networks[networkName].accounts as any).mnemonic;
   const walletPath = (hre.config.networks[networkName].accounts as any).path;

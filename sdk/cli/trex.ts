@@ -49,6 +49,7 @@ export function cmdTREXSetupTxOptions() {
 export type CmdTREXSetupOutput = {
   tokenAddress: string;
   trexFactoryAddress: string;
+  identityRegistryAddress: string;
   tokenOwner: {
     walletName: string;
     address: string;
@@ -161,6 +162,10 @@ export async function cmdTREXSetup(
 
   fs.writeFileSync('./megalodon.token.json', JSON.stringify(tokenConfigJson, null, 2), { encoding: 'utf8' });
 
+  console.error('========================================');
+  console.error('AAAAAA cmdTokenNew ' + trexFactoryAddress);
+  console.error('========================================');
+
   // create token
   const tokenResult: NewTokenResult = await cmdTokenNew(
     './megalodon.token.json',
@@ -171,6 +176,8 @@ export async function cmdTREXSetup(
     chainConfig,
     options,
   );
+
+  console.error('=== OK ===================================== ' + tokenResult.token);
 
   // Add 'token-owner' = 'super-bank' as token.identityRegistry agent
   await cmdAddAgent(tokenIRAgentWalletAlias, tokenResult.ir, tokenIROwnerWalletAlias, chainConfig, options);
@@ -277,6 +284,7 @@ export async function cmdTREXSetup(
 
   return {
     tokenAddress: tokenResult.token,
+    identityRegistryAddress: tokenResult.ir,
     trexFactoryAddress,
     accounts,
     tokenAgent: {

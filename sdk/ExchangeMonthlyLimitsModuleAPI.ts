@@ -7,8 +7,7 @@ import {
   Token,
 } from './artifacts';
 import { TxOptions, WalletResolver } from './types';
-import { txWait } from './utils';
-import { getLogEventArgs } from '../test/utils';
+import { queryLogEventArgs, txWait } from './utils';
 import { FheERC3643Error, throwIfNoProvider, throwIfNotOwner } from './errors';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
@@ -93,8 +92,8 @@ export class ExchangeMonthlyLimitsModuleAPI {
 
     const txReceipt = await txWait(module.connect(owner).addExchangeID(identity), options);
 
-    const args = getLogEventArgs(txReceipt, 'ExchangeIDAdded', undefined, module);
-    if (args.length !== 1) {
+    const args = queryLogEventArgs(txReceipt, 'ExchangeIDAdded', module.interface);
+    if (!args || args.length !== 1) {
       throw new FheERC3643Error(`Failed to add exchange ID`);
     }
     if (args[0] !== (await identity.getAddress())) {
@@ -121,8 +120,8 @@ export class ExchangeMonthlyLimitsModuleAPI {
 
     const txReceipt = await txWait(module.connect(owner).removeExchangeID(identity), options);
 
-    const args = getLogEventArgs(txReceipt, 'ExchangeIDRemoved', undefined, module);
-    if (args.length !== 1) {
+    const args = queryLogEventArgs(txReceipt, 'ExchangeIDRemoved', module.interface);
+    if (!args || args.length !== 1) {
       throw new FheERC3643Error(`Failed to remove exchange ID`);
     }
     if (args[0] !== (await identity.getAddress())) {
@@ -157,8 +156,8 @@ export class ExchangeMonthlyLimitsModuleAPI {
       options,
     );
 
-    const args = getLogEventArgs(txReceipt, 'ExchangeMonthlyLimitUpdated', undefined, module);
-    if (args.length !== 3) {
+    const args = queryLogEventArgs(txReceipt, 'ExchangeMonthlyLimitUpdated', module.interface);
+    if (!args || args.length !== 3) {
       throw new FheERC3643Error(`Failed to set the monthly limit`);
     }
     if (args[0] !== (await compliance.getAddress())) {

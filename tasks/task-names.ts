@@ -43,6 +43,7 @@ export const SCOPE_TOKEN_UNPAUSE = 'unpause';
 export const SCOPE_TOKEN_IS_PAUSED = 'is-paused';
 export const SCOPE_TOKEN_TRANSFER = 'transfer';
 export const SCOPE_TOKEN_TOTAL_SUPPLY = 'total-supply';
+export const SCOPE_TOKEN_DECRYPT = 'decrypt';
 // SupplyLimitModule
 export const SCOPE_TOKEN_SUPPLY_SET_LIMIT = 'supply:set-limit';
 export const SCOPE_TOKEN_SUPPLY_GET_LIMIT = 'supply:get-limit';
@@ -72,7 +73,9 @@ export const SCOPE_ROLES_ADD_AGENT = 'add-agent';
 
 export const SCOPE_TRANSFER_MANAGER = 'transfer-manager';
 export const SCOPE_TRANSFER_MANAGER_CREATE = 'create';
-export const SCOPE_TRANSFER_MANAGER_SET_APPROVAL = 'set-approval';
+export const SCOPE_TRANSFER_MANAGER_SET_APPROVAL_CRITERIA = 'set-approval-criteria';
 export const SCOPE_TRANSFER_MANAGER_CALCULATE_TRANSFER_ID = 'calculate-transfer-id';
 export const SCOPE_TRANSFER_MANAGER_INITIATE = 'initiate';
-export const SCOPE_TRANSFER_MANAGER_DELEGATE_APPROVE = 'delegate-approve';
+export const SCOPE_TRANSFER_MANAGER_SIGN_DELEGATE_APPROVE = 'sign-delegate-approve';
+export const SCOPE_TRANSFER_MANAGER_APPROVE = 'approve';
+export const SCOPE_TRANSFER_MANAGER_GET_TRANSFER = 'get-transfer';

@@ -1,5 +1,5 @@
 import { ethers as EthersT } from 'ethers';
-import { DVATransferManager__factory } from '../artifacts';
+import { DVATransferManager__factory, IDVATransferManager } from '../artifacts';
 import { ChainConfig } from '../ChainConfig';
 import { TokenAPI } from '../TokenAPI';
 import { TxOptions } from '../types';
@@ -52,12 +52,12 @@ export async function cmdTransferManagerCreate(
   await chainConfig.saveContract(transferManagerAddress, 'DVATransferManager');
 
   return {
-    transferManager: dvaTransferManager,
     transferManagerAddress,
     transferManagerCountry,
-    token,
-    identity,
-    identityAlias: userAddressAlias,
+    tokenAddress: await token.getAddress(),
+    tokenName: await token.name(),
+    identityAddress: await identity.getAddress(),
+    identityAddressAlias: userAddressAlias,
   };
 }
 
@@ -123,16 +123,17 @@ export async function cmdTransferManagerSetApprovalCriteria(
     );
   */
   return {
-    token,
     tokenAddress,
+    tokenName: await token.name(),
     transferManagerAddress: dvaAddress,
     transferManagerIdAlias: dvaAddressOrUserAlias,
     tokenAgentWalletAlias,
-    tokenAgent: tokenAgentWallet.address,
+    tokenAgentAddress: tokenAgentWallet.address,
     includeAgentApprover,
     includeRecipientApprover,
     sequentialApproval,
     additionalApprovers,
+    additionalApproversAlias,
     hash: _hash,
   };
 }
@@ -235,8 +236,8 @@ export async function cmdTransferManagerInitiate(
   );
 
   return {
-    token,
     tokenAddress,
+    tokenName: await token.name(),
     senderAddress: senderWallet.address,
     senderAddressAlias: senderWalletAlias,
     recipientAddress,
@@ -278,7 +279,7 @@ export async function cmdTransferManagerDelegateApprove(
 
   const tokenAddress = await token.getAddress();
 
-  const res = await DVATransferManagerAPI.signAndDelegateApproveTransfer(
+  const { txReceipt, tokenTransfer, ...res } = await DVATransferManagerAPI.signAndDelegateApproveTransfer(
     dva,
     transferID,
     signers,
@@ -288,13 +289,110 @@ export async function cmdTransferManagerDelegateApprove(
 
   const signersAddresses = await Promise.all(signers.map(s => s.getAddress()));
 
-  return {
-    token,
+  const output = {
+    tokenName: await token.name(),
     tokenAddress,
-    transferID,
-    approver: res.approver,
+    transferManagerAddress: dvaAddress,
+    ...res,
+    ...(tokenTransfer ? { tokenTransfer } : {}),
     signatures: signersAddresses.map((s, i) => {
       return { signer: s, signature: res.signatures[i] };
     }),
+  };
+
+  return output;
+}
+
+export async function cmdTransferManagerGetTransfer(
+  tokenAddressOrSaltOrNameOrSymbol: string | undefined,
+  dvaAddressOrUserAlias: string,
+  transferID: string,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+
+  const dvaAddress = await chainConfig.findDVATransferManagerAddress(token, dvaAddressOrUserAlias);
+  if (!dvaAddress) {
+    throw new FheERC3643Error(`Unable to retreive DVA Transfer manager associated to ${dvaAddressOrUserAlias}`);
+  }
+
+  await TokenAPI.throwIfNotVerified(token, dvaAddress, dvaAddressOrUserAlias, chainConfig.provider);
+
+  const dva = DVATransferManagerAPI.from(dvaAddress);
+
+  const tokenAddress = await token.getAddress();
+
+  const res = await DVATransferManagerAPI.getTransfer(dva, transferID, chainConfig.provider, options);
+
+  if (res.tokenAddress !== tokenAddress) {
+    throw new FheERC3643Error(`Invalid transferID ${transferID} (token address mismatch)`);
+  }
+
+  const details = {
+    transferID,
+    transferManagerAddress: dvaAddress,
+    tokenAddress,
+    tokenName: await token.name(),
+    senderAddress: res.sender,
+    recipientAddress: res.recipient,
+    eamount: res.eamount,
+    eactualAmount: res.eactualAmount,
+    status: res.status,
+    statusString: DVATransferManagerAPI.transferStatusToString(res.status),
+    approvers: res.approvers.map(a => {
+      return {
+        anyTokenAgent: a.anyTokenAgent,
+        approved: a.approved,
+        wallet: a.wallet,
+        walletAlias: [] as Array<string>,
+      };
+    }),
+    approvalCriteriaHash: res.approvalCriteriaHash,
+  };
+
+  for (let i = 0; i < details.approvers.length; ++i) {
+    const a = details.approvers[i];
+    a.walletAlias = chainConfig.getWalletNamesFromAddress(a.wallet);
+  }
+
+  return details;
+}
+
+export async function cmdTransferManagerApprove(
+  tokenAddressOrSaltOrNameOrSymbol: string | undefined,
+  dvaAddressOrUserAlias: string,
+  transferID: string,
+  approverWalletAlias: string,
+  chainConfig: ChainConfig,
+  options: TxOptions,
+) {
+  const token = await chainConfig.tryResolveToken(tokenAddressOrSaltOrNameOrSymbol);
+  const approverWallet = chainConfig.loadWalletFromIndexOrAliasOrAddressOrPrivateKey(approverWalletAlias);
+
+  const dvaAddress = await chainConfig.findDVATransferManagerAddress(token, dvaAddressOrUserAlias);
+  if (!dvaAddress) {
+    throw new FheERC3643Error(`Unable to retreive DVA Transfer manager associated to ${dvaAddressOrUserAlias}`);
+  }
+
+  await TokenAPI.throwIfNotVerified(token, dvaAddress, dvaAddressOrUserAlias, chainConfig.provider);
+
+  const dva = DVATransferManagerAPI.from(dvaAddress);
+
+  const tokenAddress = await token.getAddress();
+
+  const { txReceipt, tokenTransfer, ...res } = await DVATransferManagerAPI.approveTransfer(
+    dva,
+    transferID,
+    approverWallet,
+    options,
+  );
+
+  return {
+    tokenName: await token.name(),
+    tokenAddress,
+    transferManagerAddress: dvaAddress,
+    ...res,
+    ...(tokenTransfer ? { tokenTransfer } : {}),
   };
 }

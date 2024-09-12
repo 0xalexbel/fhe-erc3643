@@ -1,10 +1,22 @@
-import { ethers as EthersT, JsonRpcProvider } from 'ethers';
-import { DVATransferManager, DVATransferManager__factory, IDVATransferManager, Token } from './artifacts';
-import { txWaitAndCatchError } from './utils';
+import { ContractTransactionReceipt, ethers as EthersT, JsonRpcProvider } from 'ethers';
+import {
+  DVATransferManager,
+  DVATransferManager__factory,
+  IDVATransferManager,
+  Token,
+  Token__factory,
+} from './artifacts';
+import { queryLogEventArgs, txWaitAndCatchError } from './utils';
 import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
 import { FheERC3643Error } from './errors';
 import { TxOptions } from './types';
-import { getLogEventArgs } from '../test/utils';
+
+enum TransactionStatus {
+  PENDING = 0,
+  COMPLETED = 1,
+  CANCELLED = 2,
+  REJECTED = 3,
+}
 
 async function signTransfer(
   transferID: string,
@@ -18,7 +30,6 @@ async function signTransfer(
     throw new FheERC3643Error('Invalid provider, unable to sign message');
   }
   const rawSignature = await signer.signMessage(EthersT.getBytes(transferID));
-  //const rawSignature = await signMessage(EthersT.getBytes(transferID), await signer.getAddress(), signer.provider);
   const { v, r, s } = EthersT.Signature.from(rawSignature);
   return { v, r, s };
 }
@@ -56,6 +67,37 @@ export class DVATransferManagerAPI {
     return await dva.connect(runner).calculateTransferID(nonce, sender, recipient, eamount);
   }
 
+  static async throwIfKnownError(dva: DVATransferManager, error: any) {
+    if (!(error instanceof Error)) {
+      return;
+    }
+
+    if (!('data' in error)) {
+      return;
+    }
+
+    if (typeof error.data !== 'string') {
+      return;
+    }
+
+    if (!EthersT.isHexString(error.data)) {
+      return;
+    }
+
+    const decodedError = dva.interface.parseError(error.data);
+    if (!decodedError) {
+      return;
+    }
+
+    if (decodedError.name === 'TokenIsNotRegistered') {
+      throw new FheERC3643Error(
+        `Token ${decodedError.args[0]} is not registered in the transfer manager. Set the approval criteria first.`,
+      );
+    }
+
+    throw new FheERC3643Error(`Transfer manager error ${decodedError.name}`);
+  }
+
   static async initiateTransfer(
     dva: DVATransferManager,
     token: Token,
@@ -65,11 +107,47 @@ export class DVATransferManagerAPI {
     inputProof: Uint8Array,
     options: TxOptions,
   ) {
+    // Check if approval criteria has been configured
+    try {
+      /* const criteria: IDVATransferManager.ApprovalCriteriaStructOutput = */
+      await dva.connect(sender).getApprovalCriteria(token);
+    } catch (e) {
+      await DVATransferManagerAPI.throwIfKnownError(dva, e);
+      throw e;
+    }
+
+    // recipient must have been verified. (perfomed earlier)
     const txReceipt = await txWaitAndCatchError(
       dva.connect(sender).initiateTransfer(await token.getAddress(), recipient, eamount, inputProof),
       options,
     );
     return txReceipt;
+  }
+
+  static async getTransfer(
+    dva: DVATransferManager,
+    transferID: string,
+    runner: EthersT.ContractRunner,
+    options: TxOptions,
+  ) {
+    const transferIDDetails = await dva.connect(runner).getTransfer(transferID);
+
+    const { tokenAddress, sender, recipient, eamount, eactualAmount, status, approvers, approvalCriteriaHash } =
+      transferIDDetails;
+
+    return {
+      tokenAddress,
+      sender,
+      recipient,
+      eamount,
+      eactualAmount,
+      status,
+      approvers: approvers.map(a => {
+        return { wallet: a.wallet, anyTokenAgent: a.anyTokenAgent, approved: a.approved };
+      }),
+      approvalCriteriaHash,
+      statusString: DVATransferManagerAPI.transferStatusToString(status),
+    };
   }
 
   static async delegateApproveTransfer(
@@ -79,6 +157,32 @@ export class DVATransferManagerAPI {
     caller: EthersT.Signer,
     options: TxOptions,
   ) {
+    if (signatures.length === 0) {
+      throw new FheERC3643Error(`Signatures cannot be empty (transferID=${transferID})`);
+    }
+
+    const transferDetails: {
+      tokenAddress: string;
+      sender: string;
+      recipient: string;
+      eamount: bigint;
+      eactualAmount: bigint;
+      status: bigint;
+      approvers: {
+        wallet: string;
+        anyTokenAgent: boolean;
+        approved: boolean;
+      }[];
+      approvalCriteriaHash: string;
+    } = await dva.connect(caller).getTransfer(transferID);
+
+    if (transferDetails.tokenAddress === EthersT.ZeroAddress) {
+      throw new FheERC3643Error(`Invalid transferID=${transferID}`);
+    }
+    if (transferDetails.status !== BigInt(TransactionStatus.PENDING)) {
+      throw new FheERC3643Error(`Transfer is not in pending status (transferID=${transferID})`);
+    }
+
     const txReceipt = await txWaitAndCatchError(
       dva.connect(caller).delegateApproveTransfer(transferID, signatures),
       options,
@@ -89,11 +193,32 @@ export class DVATransferManagerAPI {
   static async approveTransfer(
     dva: DVATransferManager,
     transferID: string,
-    caller: EthersT.Signer,
+    approver: EthersT.Signer,
     options: TxOptions,
   ) {
-    const txReceipt = await txWaitAndCatchError(dva.connect(caller).approveTransfer(transferID), options);
-    return txReceipt;
+    const txReceipt = await txWaitAndCatchError(dva.connect(approver).approveTransfer(transferID), options);
+
+    const args = queryLogEventArgs(txReceipt, 'TransferApproved', dva.interface);
+
+    let _approver: { transferID: string; address: string } | undefined = undefined;
+
+    if (args && args.length >= 2) {
+      _approver = {
+        transferID: args[0],
+        address: args[1],
+      };
+    }
+
+    const transferDetails = await DVATransferManagerAPI.getTransfer(dva, transferID, approver, options);
+    const tokenTransfer = queryTokenTransferEvent(txReceipt);
+
+    return {
+      txReceipt,
+      approver: _approver,
+      transferID,
+      transferDetails,
+      tokenTransfer,
+    };
   }
 
   static async cancelTransfer(dva: DVATransferManager, transferID: string, caller: EthersT.Signer, options: TxOptions) {
@@ -104,11 +229,6 @@ export class DVATransferManagerAPI {
   static async rejectTransfer(dva: DVATransferManager, transferID: string, caller: EthersT.Signer, options: TxOptions) {
     const txReceipt = await txWaitAndCatchError(dva.connect(caller).rejectTransfer(transferID), options);
     return txReceipt;
-  }
-
-  static async getTransfer(dva: DVATransferManager, transferID: string, runner: EthersT.ContractRunner) {
-    const t: IDVATransferManager.TransferStructOutput = await dva.connect(runner).getTransfer(transferID);
-    return t;
   }
 
   static async getNextApprover(dva: DVATransferManager, transferID: string, runner: EthersT.ContractRunner) {
@@ -123,6 +243,21 @@ export class DVATransferManagerAPI {
     return dva.connect(runner).getNextTxNonce();
   }
 
+  static transferStatusToString(status: bigint): string {
+    switch (status) {
+      case 0n:
+        return 'PENDING';
+      case 1n:
+        return 'COMPLETED';
+      case 2n:
+        return 'CANCELLED';
+      case 3n:
+        return 'REJECTED';
+      default:
+        throw new FheERC3643Error(`Unknown transfer status ${status}.`);
+    }
+  }
+
   static async signAndDelegateApproveTransfer(
     dva: DVATransferManager,
     transferID: string,
@@ -135,58 +270,43 @@ export class DVATransferManagerAPI {
       const s = await signTransfer(transferID, signers[i]);
       signatures.push(s);
     }
+
     const txReceipt = await DVATransferManagerAPI.delegateApproveTransfer(dva, transferID, signatures, caller, options);
 
-    const args = getLogEventArgs(txReceipt, 'TransferApproved', undefined, dva);
+    const args = queryLogEventArgs(txReceipt, 'TransferApproved', dva.interface);
 
     let approver: { transferID: string; address: string } | undefined = undefined;
 
-    if (args.length >= 2) {
+    if (args && args.length >= 2) {
       approver = {
         transferID: args[0],
         address: args[1],
       };
     }
 
+    const transferDetails = await DVATransferManagerAPI.getTransfer(dva, transferID, caller, options);
+    const tokenTransfer = queryTokenTransferEvent(txReceipt);
+
     return {
       txReceipt,
       signatures,
       approver,
+      transferID,
+      transferDetails,
+      tokenTransfer,
     };
   }
-
-  /*
-    function initiateTransfer(
-        address tokenAddress,
-        address recipient,
-        einput encryptedAmount,
-        bytes calldata inputProof
-
-  */
 }
 
-/*
-          const tx = context.suite.transferManager
-            .connect(context.accounts.anotherWallet)
-            .delegateApproveTransfer(context.transferID, [
-              await signTransfer(context.transferID, context.accounts.charlieWallet),
-            ]);
-
-
-    const transferID = await context.suite.transferManager.calculateTransferID(
-      0,
-      context.accounts.aliceWallet.address,
-      context.accounts.bobWallet.address,
-      ethers.toBigInt(encHundredHandle),
-    );
-
-    await context.suite.transferManager
-      .connect(context.accounts.aliceWallet)
-      .initiateTransfer(
-        context.suite.token,
-        context.accounts.bobWallet.address,
-        encHundredHandle,
-        encHundred.inputProof,
-      );
-
-*/
+function queryTokenTransferEvent(txReceipt: ContractTransactionReceipt | null) {
+  let tokenTransfer: { from: string; to: string; eamount: any } | null = null;
+  const args = queryLogEventArgs(txReceipt, 'Transfer', Token__factory.createInterface());
+  if (args && args.length === 3) {
+    tokenTransfer = {
+      from: EthersT.getAddress(args[0]),
+      to: EthersT.getAddress(args[1]),
+      eamount: args[2],
+    };
+  }
+  return tokenTransfer;
+}

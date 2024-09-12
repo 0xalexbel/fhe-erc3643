@@ -4,9 +4,10 @@ import { bigint, string } from 'hardhat/internal/core/params/argumentTypes';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { clearHistory, loadChainConfig } from './utils';
 import { SCOPE_TREX, SCOPE_TREX_NEW_FACTORY, SCOPE_TREX_SETUP } from './task-names';
-import { logOK, logMsg } from '../sdk/log';
+import { logOK, logJSONResult, logMsgResult } from '../sdk/log';
 import { importCliModule, importTypes } from './internal/imp';
 import { TxOptions } from '../sdk/types';
+import { CmdTREXSetupOutput } from '../sdk/cli/trex';
 
 const trexScope = scope(SCOPE_TREX, 'Manage TREX factories');
 
@@ -30,15 +31,21 @@ trexScope
     return ouput;
   });
 
-//npx hardhat --network fhevm trex setup --wallet admin
+//npx hardhat --network fhevm trex setup
 trexScope
   .task(SCOPE_TREX_SETUP)
   .addFlag('unpause', 'Unpause token after creation')
-  .addFlag('quiet', 'Disable progress, displays the meaningful results to stdout')
-  .addOptionalParam('mint', 'Default mint amount', 0n, bigint)
+  .addFlag('noProgress', 'Disable progress')
+  .addFlag('json', 'Output result in json format')
+  .addParam('mint', 'Default mint amount', undefined, bigint)
   .setAction(
     async (
-      { mint, unpause, quiet }: { mint: bigint; unpause: boolean; quiet: boolean },
+      {
+        mint,
+        unpause,
+        noProgress,
+        json,
+      }: { mint: bigint; unpause: boolean; noProgress: boolean; json: boolean; stderr: boolean },
       hre: HardhatRuntimeEnvironment,
     ) => {
       await importTypes(hre);
@@ -48,17 +55,20 @@ trexScope
         clearHistory(hre);
       }
 
-      const chainConfig = await loadChainConfig(hre, { quiet });
+      const chainConfig = await loadChainConfig(hre, noProgress);
 
       const options: TxOptions = cmds.cmdTREXSetupTxOptions();
-      options.quiet = quiet;
+      options.noProgress = noProgress;
 
-      const result: { tokenAddress: string } = await cmds.cmdTREXSetup(chainConfig, mint, unpause, options);
+      const result: CmdTREXSetupOutput = await cmds.cmdTREXSetup(chainConfig, mint, unpause, options);
 
-      if (!quiet) {
-        logOK(`New TREX token has been deployed at:`, { stderr: true });
+      if (json) {
+        // Result logs ignore the quiet flag
+        logJSONResult(result);
+      } else {
+        logOK(`New TREX token has been deployed at:`, { quiet: noProgress });
+        logMsgResult(`${result.tokenAddress}`);
       }
-      logMsg(`${result.tokenAddress}`);
 
       return result;
     },

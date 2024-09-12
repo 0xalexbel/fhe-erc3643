@@ -7,7 +7,7 @@ import { FheERC3643Error, FheERC3643InternalError } from '../sdk/errors';
 import { logError } from './log';
 import type { HardhatFhevmRuntimeEnvironment as HardhatFhevmRuntimeEnvironmentType } from 'hardhat-fhevm/dist/src/common/HardhatFhevmRuntimeEnvironment';
 import type { HardhatFhevmInstance as HardhatFhevmInstanceType } from 'hardhat-fhevm';
-import { Token, TREXFactory } from '../types';
+import { Token, TREXFactory } from './artifacts';
 import { ChainConfigJSON, ChainNetworkConfig, CryptEngine, History, WalletResolver } from './types';
 
 export const WALLETS: Array<{ index: number; names: string[] }> = [

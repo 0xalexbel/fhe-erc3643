@@ -10,6 +10,7 @@ import {
   SCOPE_TOKEN_BALANCE,
   SCOPE_TOKEN_BURN,
   SCOPE_TOKEN_DEC_ALLOWANCE,
+  SCOPE_TOKEN_DECRYPT,
   SCOPE_TOKEN_EXCHANGE_MONTHLY_ADD_ID,
   SCOPE_TOKEN_EXCHANGE_MONTHLY_GET_MONTHLY_COUNTER,
   SCOPE_TOKEN_EXCHANGE_MONTHLY_IS_ID,
@@ -36,7 +37,7 @@ import {
   SCOPE_TOKEN_UNPAUSE,
 } from './task-names';
 import { importCliModule, importTypes } from './internal/imp';
-import { defaultTxOptions, logOK, LogOptions } from '../sdk/log';
+import { defaultTxOptions, logJSONResult, logOK, LogOptions } from '../sdk/log';
 
 const tokenScope = scope(SCOPE_TOKEN, 'Manage TREX Token');
 
@@ -97,7 +98,7 @@ tokenScope
       const chainConfig = await loadChainConfig(hre);
 
       const options = defaultTxOptions(1);
-      const lo: LogOptions = { quiet: options.quiet };
+      const lo: LogOptions = { quiet: options.noProgress };
 
       const token = await cmds.cmdTokenShow(addressOrSaltOrNameOrSymbol, chainConfig, options);
 
@@ -110,6 +111,7 @@ tokenScope
       logOK(`identityRegistry : ${token.identityRegistry}`, lo);
       logOK(`agents alias     : ${token.agents.map(v => v.alias.names).join(',')}`, lo);
       logOK(`agents           : ${token.agents.map(v => v.address).join(',')}`, lo);
+      logOK(`paused           : ${token.paused}`, lo);
 
       return token;
     },
@@ -122,26 +124,33 @@ tokenScope
   .setDescription('Displays the token balance of a given user')
   .addOptionalParam('token', 'Token name/symbol/salt/address or last deployed', undefined, string)
   .addParam('user', 'The address or wallet index/alias of the user', undefined, string)
-  .setAction(async ({ token, user }: { token: string; user: string }, hre: HardhatRuntimeEnvironment) => {
-    await importTypes(hre);
-    const cmds = await import('../sdk/cli/token');
-    const chainConfig = await loadChainConfig(hre);
+  .addFlag('json', 'Output in json format')
+  .setAction(
+    async ({ token, user, json }: { token: string; user: string; json: boolean }, hre: HardhatRuntimeEnvironment) => {
+      await importTypes(hre);
+      const cmds = await import('../sdk/cli/token');
+      const chainConfig = await loadChainConfig(hre);
 
-    const options = defaultTxOptions(2);
-    const lo: LogOptions = { quiet: options.quiet };
+      const options = defaultTxOptions(2);
+      options.noProgress = true;
+      const lo: LogOptions = { quiet: options.noProgress };
 
-    const res = await cmds.cmdTokenBalance(token, user, chainConfig, options);
+      const res = await cmds.cmdTokenBalance(token, user, chainConfig, options);
 
-    logOK(``, lo);
-    logOK(`user              : ${user}`, lo);
-    logOK(`user address      : ${res.userAddress}`, lo);
-    logOK(`decrypted balance : ${res.value}`, lo);
-    logOK(`fhevm handle      : ${res.fhevmHandle}`, lo);
-    logOK(`token             : ${await res.token.getAddress()}`, lo);
-    logOK(`token name        : ${await res.token.name()}`, lo);
+      if (json) {
+        logJSONResult(res);
+      } else {
+        logOK(`user              : ${res.userWalletAlias}`, lo);
+        logOK(`user address      : ${res.userAddress}`, lo);
+        logOK(`decrypted balance : ${res.value}`, lo);
+        logOK(`fhevm handle      : ${res.fhevmHandle}`, lo);
+        logOK(`token             : ${res.tokenAddress}`, lo);
+        logOK(`token name        : ${res.tokenName}`, lo);
+      }
 
-    return res;
-  });
+      return res;
+    },
+  );
 
 //npx hardhat --network fhevm token mint --token 0x47DA632524c03ED15D293e34256D28BD0d38c7a4 --user alice --agent "token-agent" --amount 100
 tokenScope
@@ -322,11 +331,10 @@ tokenScope
     const chainConfig = await loadChainConfig(hre);
 
     const options = defaultTxOptions(2);
-    const lo: LogOptions = { quiet: options.quiet };
+    const lo: LogOptions = { quiet: options.noProgress };
 
     const res = await cmds.cmdTokenTotalSupply(token, chainConfig, options);
 
-    logOK(``, lo);
     logOK(`decrypted total supply : ${res.value}`, lo);
     logOK(`fhevm handle           : ${res.fhevmHandle}`, lo);
     logOK(`token                  : ${await res.token.getAddress()}`, lo);
@@ -593,11 +601,10 @@ tokenScope
       const chainConfig = await loadChainConfig(hre);
 
       const options = defaultTxOptions(1);
-      const lo: LogOptions = { quiet: options.quiet };
+      const lo: LogOptions = { quiet: options.noProgress };
 
       const res = await cmds.cmdTokenAllowance(token, owner, spender, chainConfig, options);
 
-      logOK(``, lo);
       logOK(`allowance          : ${res.value}`, lo);
       logOK(`fhevm handle       : ${res.fhevmHandle}`, lo);
       logOK(`owner              : ${res.ownerAlias}`, lo);
@@ -633,11 +640,10 @@ tokenScope
       const chainConfig = await loadChainConfig(hre);
 
       const options = defaultTxOptions(1);
-      const lo: LogOptions = { quiet: options.quiet };
+      const lo: LogOptions = { quiet: options.noProgress };
 
       const res = await cmds.cmdTokenApprove(token, caller, spender, amount, chainConfig, options);
 
-      logOK(``, lo);
       logOK(`amount             : ${res.value}`, lo);
       logOK(`fhevm handle       : ${res.fhevmHandle}`, lo);
       logOK(`owner              : ${res.ownerAlias}`, lo);
@@ -675,11 +681,10 @@ tokenScope
       const chainConfig = await loadChainConfig(hre);
 
       const options = defaultTxOptions(1);
-      const lo: LogOptions = { quiet: options.quiet };
+      const lo: LogOptions = { quiet: options.noProgress };
 
       const res = await cmds.cmdTokenIncreaseAllowance(token, caller, spender, amount, chainConfig, options);
 
-      logOK(``, lo);
       logOK(`added amount       : ${res.value}`, lo);
       logOK(`fhevm handle       : ${res.fhevmHandle}`, lo);
       logOK(`owner              : ${res.ownerAlias}`, lo);
@@ -717,11 +722,10 @@ tokenScope
       const chainConfig = await loadChainConfig(hre);
 
       const options = defaultTxOptions(1);
-      const lo: LogOptions = { quiet: options.quiet };
+      const lo: LogOptions = { quiet: options.noProgress };
 
       const res = await cmds.cmdTokenDecreaseAllowance(token, caller, spender, amount, chainConfig, options);
 
-      logOK(``, lo);
       logOK(`substracted amount : ${res.value}`, lo);
       logOK(`fhevm handle       : ${res.fhevmHandle}`, lo);
       logOK(`owner              : ${res.ownerAlias}`, lo);
@@ -734,6 +738,26 @@ tokenScope
       return res;
     },
   );
+
+tokenScope
+  .task(SCOPE_TOKEN_DECRYPT)
+  .setDescription('Decrypt an FHEVM handle (Debug).')
+  .addPositionalParam('handle', 'The FHEVM handle', undefined, string)
+  .setAction(async ({ handle }: { handle: string }, hre: HardhatRuntimeEnvironment) => {
+    await importTypes(hre);
+    const cmds = await import('../sdk/cli/token');
+    const chainConfig = await loadChainConfig(hre);
+
+    const options = defaultTxOptions(1);
+    const lo: LogOptions = { quiet: options.noProgress };
+
+    const clear = await chainConfig.decrypt64(handle);
+
+    logOK(`clear              : ${clear}`, lo);
+    logOK(`fhevm handle       : ${handle}`, lo);
+
+    return clear;
+  });
 
 // forcedtransfer (onlyAgent)
 // freeze-user (onlyAgent)

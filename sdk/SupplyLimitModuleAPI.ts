@@ -1,8 +1,7 @@
 import { ethers as EthersT } from 'ethers';
 import { ModularCompliance, SupplyLimitModule, SupplyLimitModule__factory, Token } from './artifacts';
 import { CryptEngine, TxOptions } from './types';
-import { txWait } from './utils';
-import { getLogEventArgs } from '../test/utils';
+import { queryLogEventArgs, txWait } from './utils';
 import { FheERC3643Error } from './errors';
 import { TokenAPI } from './TokenAPI';
 import { ModularComplianceAPI } from './ModuleComplianceAPI';
@@ -101,8 +100,8 @@ export class SupplyLimitModuleAPI {
       options,
     );
 
-    const args = getLogEventArgs(txReceipt, 'SupplyLimitSet', undefined, module);
-    if (args.length !== 2) {
+    const args = queryLogEventArgs(txReceipt, 'SupplyLimitSet', module.interface);
+    if (!args || args.length !== 2) {
       throw new FheERC3643Error(`Failed to set the supply limit`);
     }
     if (args[0] !== (await compliance.getAddress())) {

@@ -1,5 +1,5 @@
 import { ethers as EthersT } from 'ethers';
-import { getContractOwner } from './utils';
+import { getContractOwner, jsonStringify } from './utils';
 import { ChainConfig } from './ChainConfig';
 import { TxOptions } from './types';
 
@@ -7,6 +7,11 @@ export type LogOptions = {
   indent?: string;
   stderr?: boolean;
   quiet?: boolean;
+};
+
+export type LogResultOptions = {
+  indent?: string;
+  stderr?: boolean;
 };
 
 export function logBox(msg: string, options?: LogOptions) {
@@ -34,34 +39,36 @@ function _log(msg: string, options?: LogOptions) {
   }
   const indent = options?.indent ? options.indent : '';
   if (options?.stderr) {
-    //console.log('ERROR');
     console.error(indent + msg);
   } else {
     console.log(indent + msg);
   }
 }
 
+function _logResult(msg: string, options?: LogOptions) {
+  // ignore quiet flag
+  const indent = options?.indent ? options.indent : '';
+
+  if (options?.stderr) {
+    process.stderr.write(indent + msg + '\n');
+  } else {
+    process.stdout.write(indent + msg + '\n');
+  }
+}
+
 export function logDimErrorWithPrefix(prefix: string, msg: string, options?: LogOptions) {
-  // const indent = options ? options.indent : '';
-  // console.log(`${indent}\x1b[32m✔ hardhat-fhevm:\x1b[0m ${msg}`);
   _log(`\x1b[31m${prefix}\x1b[0m\x1b[31m${msg}\x1b[0m`, options);
 }
 
 export function logDimWithGreenPrefix(prefix: string, msg: string, options?: LogOptions) {
-  // const indent = options ? options.indent : '';
-  // console.log(`${indent}\x1b[32m✔ hardhat-fhevm:\x1b[0m ${msg}`);
   _log(`\x1b[32m${prefix}\x1b[0m\x1b[2m${msg}\x1b[0m`, options);
 }
 
 export function logDim(msg: string, options?: LogOptions) {
-  // const indent = options ? options.indent : '';
-  // console.log(`${indent}\x1b[2m${msg}\x1b[0m`);
   _log(`\x1b[2m${msg}\x1b[0m`, options);
 }
 
 export function logMsg(msg: string, options?: LogOptions) {
-  // const indent = options ? options.indent : '';
-  // console.log(`${indent}${msg}`);
   _log(msg, options);
 }
 
@@ -73,30 +80,38 @@ export function logOK(msg: string, options?: LogOptions) {
   _log(`\x1b[32m${msg}\x1b[0m`, options);
 }
 
+export function logJSONResult(o: any, options?: LogResultOptions) {
+  _logResult(jsonStringify(o), options);
+}
+
+export function logMsgResult(msg: string, options?: LogResultOptions) {
+  _logResult(msg, options);
+}
+
 export function logInfo(msg: string, options?: LogOptions) {
   _log(`\x1b[33m${msg}\x1b[0m`, options);
 }
 
 export function logStepOK(msg: string, options: TxOptions | undefined) {
-  if (options?.progress && options.quiet !== true) {
+  if (options?.progress && options.noProgress !== true) {
     options.progress.logStep(msg);
   }
 }
 
 export function logStepInfo(msg: string, options: TxOptions | undefined) {
-  if (options?.progress && options.quiet !== true) {
+  if (options?.progress && options.noProgress !== true) {
     options.progress.logStep(msg);
   }
 }
 
 export function logStepMsg(msg: string, options: TxOptions | undefined) {
-  if (options?.progress && options.quiet !== true) {
+  if (options?.progress && options.noProgress !== true) {
     options.progress.logStep(msg);
   }
 }
 
 export function logStepError(msg: string, options: TxOptions | undefined) {
-  if (options?.progress && options.quiet !== true) {
+  if (options?.progress && options.noProgress !== true) {
     options.progress.logStepError(msg);
   }
 }
@@ -112,6 +127,9 @@ export async function logContractOwner(
   chainConfig: ChainConfig,
   options: TxOptions | undefined,
 ) {
+  if (options?.noProgress === true) {
+    return;
+  }
   if (!contract.runner) {
     return;
   }
@@ -122,9 +140,9 @@ export async function logContractOwner(
   }
   const alias = chainConfig.getWalletNamesFromAddress(ownerAddress);
   if (alias.length > 0) {
-    logMsg(`${name} owner is '${alias[0]}' (address: ${ownerAddress})`, options);
+    logMsg(`${name} owner is '${alias[0]}' (address: ${ownerAddress})`);
   } else {
-    logMsg(`${name} owner is ${ownerAddress}`, options);
+    logMsg(`${name} owner is ${ownerAddress}`);
   }
 }
 
@@ -200,6 +218,6 @@ export function defaultTxOptions(steps: number): TxOptions {
   return {
     progress: new Progress(steps),
     confirms: 1,
-    quiet: false,
+    noProgress: false,
   };
 }

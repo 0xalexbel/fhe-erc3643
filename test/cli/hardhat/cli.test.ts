@@ -18,9 +18,9 @@ import {
   SCOPE_TOKEN_UNPAUSE,
   SCOPE_TRANSFER_MANAGER,
   SCOPE_TRANSFER_MANAGER_CREATE,
-  SCOPE_TRANSFER_MANAGER_DELEGATE_APPROVE,
+  SCOPE_TRANSFER_MANAGER_SIGN_DELEGATE_APPROVE,
   SCOPE_TRANSFER_MANAGER_INITIATE,
-  SCOPE_TRANSFER_MANAGER_SET_APPROVAL,
+  SCOPE_TRANSFER_MANAGER_SET_APPROVAL_CRITERIA,
   SCOPE_TREX,
   SCOPE_TREX_SETUP,
 } from '../../../tasks/task-names';
@@ -219,7 +219,7 @@ describe('run command trex setup', () => {
       expect(transferManagerAddress).to.be.a.properAddress;
 
       const res3 = await hre.run(
-        { scope: SCOPE_TRANSFER_MANAGER, task: SCOPE_TRANSFER_MANAGER_SET_APPROVAL },
+        { scope: SCOPE_TRANSFER_MANAGER, task: SCOPE_TRANSFER_MANAGER_SET_APPROVAL_CRITERIA },
         {
           token: tokenAddress,
           dva: identityAlias,
@@ -262,7 +262,7 @@ describe('run command trex setup', () => {
 
       // charlie is an approver (cf above)
       const res6 = await hre.run(
-        { scope: SCOPE_TRANSFER_MANAGER, task: SCOPE_TRANSFER_MANAGER_DELEGATE_APPROVE },
+        { scope: SCOPE_TRANSFER_MANAGER, task: SCOPE_TRANSFER_MANAGER_SIGN_DELEGATE_APPROVE },
         {
           token: tokenAddress,
           dva: dvaAddress,

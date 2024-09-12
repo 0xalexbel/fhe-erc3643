@@ -2,9 +2,7 @@ import { ethers as EthersT } from 'ethers';
 
 import { NomicLabsHardhatPluginError } from 'hardhat/plugins';
 import { getContractOwner, isDeployed } from './utils';
-import { ChainConfig } from './ChainConfig';
 import { WalletResolver } from './types';
-import { AgentRole, AgentRole__factory } from '../types';
 
 export class FheERC3643Error extends NomicLabsHardhatPluginError {
   constructor(message: string, parent?: Error) {
@@ -57,7 +55,9 @@ export async function throwIfNotAgent(
   walletResolver: WalletResolver,
 ) {
   const arAddr = await EthersT.resolveAddress(agentRoleAddress, provider);
-  const agentRole = AgentRole__factory.connect(arAddr);
+  const imp = await import('./artifacts');
+
+  const agentRole = imp.AgentRole__factory.connect(arAddr);
 
   if (!(await agentRole.connect(provider).isAgent(agent))) {
     const agentAddress = await EthersT.resolveAddress(agent, provider);
